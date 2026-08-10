@@ -1,0 +1,15 @@
+{
+  "name": "bradar-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend for the BRADAR Telegram media-planner mini-app: initData auth, plan engine (optionally Claude-powered), per-user storage, Telegram Stars payments.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "ALLOW_INSECURE_AUTH=1 node server.js",
+    "bot": "node bot.js",
+    "prepare-deploy": "node -e \"require('fs').copyFileSync('../bradar.html','public/bradar.html');console.log('synced public/bradar.html')\"",
+    "test": "node test-engine.js && node test-client.js && node test-bot.js"
+  },
+  "engines": { "node": ">=18" }
+}

@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.local
+data/
+.vercel/
+*.log
+# public/bradar.html IS committed on purpose (bundled for Vercel) — run `npm run prepare-deploy` to refresh it.
