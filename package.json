@@ -8,8 +8,10 @@
     "start": "node server.js",
     "dev": "ALLOW_INSECURE_AUTH=1 node server.js",
     "bot": "node bot.js",
-    "prepare-deploy": "node -e \"require('fs').copyFileSync('../bradar.html','public/bradar.html');console.log('synced public/bradar.html')\"",
+    "prepare-deploy": "node prepare-deploy.js",
     "test": "node test-engine.js && node test-client.js && node test-bot.js"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }
