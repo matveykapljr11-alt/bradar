@@ -44,12 +44,22 @@ function handleOf(link, title) {
 
 // derive a search term from the brand description
 const STOP = new Set(['наш', 'наша', 'наше', 'для', 'как', 'что', 'это', 'или', 'бренд', 'канал', 'хотим', 'через', 'сайт', 'себя', 'наши', 'свои', 'также', 'чтобы', 'когда', 'можно', 'продаём', 'маркетплейс', 'москов', 'увеличить', 'продажи']);
-function termOf(desc, vertical) {
-  const words = String(desc || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').split(/\s+/)
-    .filter(w => w.length >= 4 && !STOP.has(w));
-  if (words.length) return words[0];   // single strongest keyword (multi-word over-filters Telemetr)
-  return ({ beauty: 'косметика', fashion: 'мода', edu: 'курсы', app: 'приложения', b2b: 'бизнес' })[vertical] || 'блог';
+// curated single-word search terms per vertical (multi-word over-filters Telemetr's free search)
+const VERTICAL_TERMS = {
+  beauty: ['косметика', 'уход', 'бьюти', 'макияж', 'парфюм'],
+  fashion: ['мода', 'стиль', 'одежда', 'гардероб', 'образ'],
+  edu: ['английский', 'курсы', 'обучение', 'образование', 'язык'],
+  app: ['приложения', 'гаджеты', 'технологии', 'лайфхаки'],
+  b2b: ['бизнес', 'маркетинг', 'предприниматель', 'продажи', 'стартап'],
+  generic: ['новости', 'лайфстайл', 'саморазвитие', 'психология', 'интересное'],
+};
+function termsFor(desc, vertical) {
+  const brand = String(desc || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').split(/\s+/)
+    .filter(w => w.length >= 5 && !STOP.has(w)).slice(0, 2);
+  const base = VERTICAL_TERMS[vertical] || VERTICAL_TERMS.generic;
+  return [...new Set([...brand, ...base])].slice(0, 6);
 }
+function termOf(desc, vertical) { return termsFor(desc, vertical)[0]; }
 function isRu(r) { const c = String(pick(r, ['country']) || '').toLowerCase(); return c === '' || c === 'russia' || c === 'россия' || c === 'ru'; }
 
 async function apiGet(path, params) {
@@ -68,23 +78,41 @@ function rowsOf(data) {
  * Fetch real candidate channels for a brand. Returns engine-shaped channels, or
  * null if the source is disabled or the call fails (→ engine uses its seed catalog).
  */
+async function searchRu(term) {
+  try { return rowsOf(await apiGet('/v1/channels/search', { term, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 20 })); }
+  catch (e) { return []; }
+}
 async function fetchCandidates(input = {}) {
   if (!enabled()) return null;
   const vertical = input.vertical || 'generic';
-  const term = termOf(input.desc, vertical);
   const topic = topicOf(null, vertical);            // free tier: no per-result category
   const cpm = CPM_BY_TOPIC[topic] || 500;
   try {
-    // /v1/channels/search works on the free tier (basic fields: title, members, verified)
-    let rows = [];
-    try { rows = rowsOf(await apiGet('/v1/channels/search', { term, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 30 })); } catch (e) {}
-    if (!rows.length) rows = rowsOf(await apiGet('/v1/channels/search', { term, limit: 30 }));
-    // prefer real Russian channels (not groups); relax step-by-step rather than return nothing
-    let real = rows.filter(r => pick(r, ['peer', 'peer_type']) !== 'Group' && isRu(r) && num(pick(r, ['members_count', 'members'])) >= 5000);
-    if (real.length < 4) real = rows.filter(r => pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 3000);
-    if (!real.length) real = rows.filter(r => num(pick(r, ['members_count', 'members'])) >= 3000);
-    if (!real.length) real = rows;
+    // aggregate real Russian channels across several vertical keywords
+    const terms = termsFor(input.desc, vertical);
+    const seen = new Set();
+    let real = [];
+    for (const t of terms) {
+      const rows = await searchRu(t);
+      for (const r of rows) {
+        const id = pick(r, ['internal_id', 'id']);
+        if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 5000) {
+          seen.add(id); real.push(r);
+        }
+      }
+      if (real.length >= 16) break;
+    }
+    // last-resort relax (rarely needed): one plain search
+    if (real.length < 3) {
+      let plain = [];
+      try { plain = rowsOf(await apiGet('/v1/channels/search', { term: terms[0], limit: 30 })); } catch (e) {}
+      for (const r of plain) {
+        const id = pick(r, ['internal_id', 'id']);
+        if (id && !seen.has(id) && num(pick(r, ['members_count', 'members'])) >= 3000) { seen.add(id); real.push(r); }
+      }
+    }
     if (!real.length) return null;
+    real.sort((a, b) => num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members'])));
     const out = real.slice(0, 20).map((r, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
       const subs = num(pick(r, ['members_count', 'members', 'participants_count']));
