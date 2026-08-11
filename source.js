@@ -47,9 +47,10 @@ const STOP = new Set(['наш', 'наша', 'наше', 'для', 'как', 'ч�
 function termOf(desc, vertical) {
   const words = String(desc || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').split(/\s+/)
     .filter(w => w.length >= 4 && !STOP.has(w));
-  if (words.length) return words.slice(0, 4).join(' ');
-  return ({ beauty: 'косметика уход', fashion: 'мода стиль', edu: 'обучение курсы', app: 'приложения', b2b: 'бизнес маркетинг' })[vertical] || 'lifestyle';
+  if (words.length) return words[0];   // single strongest keyword (multi-word over-filters Telemetr)
+  return ({ beauty: 'косметика', fashion: 'мода', edu: 'курсы', app: 'приложения', b2b: 'бизнес' })[vertical] || 'блог';
 }
+function isRu(r) { const c = String(pick(r, ['country']) || '').toLowerCase(); return c === '' || c === 'russia' || c === 'россия' || c === 'ru'; }
 
 async function apiGet(path, params) {
   const url = new URL(BASE + path);
@@ -75,10 +76,12 @@ async function fetchCandidates(input = {}) {
   const cpm = CPM_BY_TOPIC[topic] || 500;
   try {
     // /v1/channels/search works on the free tier (basic fields: title, members, verified)
-    const data = await apiGet('/v1/channels/search', { term, peer_type: 'Channel', language: 'ru', country: 'russia', limit: 24 });
-    let rows = rowsOf(data);
-    let real = rows.filter(r => (pick(r, ['peer', 'peer_type']) === 'Channel' || !pick(r, ['peer', 'peer_type'])) && num(pick(r, ['members_count', 'members'])) >= 3000);
-    if (!real.length) real = rows;                  // relax filters rather than return nothing
+    const data = await apiGet('/v1/channels/search', { term, limit: 30 });
+    const rows = rowsOf(data);
+    let real = rows.filter(r => num(pick(r, ['members_count', 'members'])) >= 3000);
+    const ru = real.filter(isRu);                   // prefer Russian channels
+    if (ru.length >= 4) real = ru;
+    if (!real.length) real = rows;                  // relax rather than return nothing
     if (!real.length) return null;
     const out = real.slice(0, 20).map((r, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
