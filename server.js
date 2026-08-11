@@ -93,6 +93,11 @@ function send(res, code, obj, headers) {
 }
 function readBody(req) {
   return new Promise((resolve) => {
+    // On Vercel (@vercel/node) the JSON body may already be parsed into req.body.
+    if (req.body !== undefined && req.body !== null) {
+      if (typeof req.body === 'string') { try { return resolve(JSON.parse(req.body)); } catch (e) { return resolve({}); } }
+      return resolve(req.body);
+    }
     let d = ''; req.on('data', c => { d += c; if (d.length > 2e6) req.destroy(); });
     req.on('end', () => { try { resolve(d ? JSON.parse(d) : {}); } catch (e) { resolve({}); } });
   });
@@ -145,6 +150,13 @@ async function handler(req, res) {
       const upd = await readBody(req);
       if (upd.pre_checkout_query) {
         await tg('answerPreCheckoutQuery', { pre_checkout_query_id: upd.pre_checkout_query.id, ok: true });
+      } else if (upd.message && typeof upd.message.text === 'string' && /^\/start\b/.test(upd.message.text)) {
+        const app = process.env.APP_URL || '';
+        await tg('sendMessage', {
+          chat_id: upd.message.chat.id,
+          text: 'BRADAR — подбираем Telegram-каналы под ваш бренд и собираем медиаплан.\nНажмите кнопку ниже или значок меню слева от поля ввода, чтобы открыть приложение.',
+          reply_markup: app ? { inline_keyboard: [[{ text: '📡 Открыть BRADAR', web_app: { url: app } }]] } : undefined,
+        });
       } else if (upd.message && upd.message.successful_payment) {
         const sp = upd.message.successful_payment;
         const uid = String(upd.message.from.id);
