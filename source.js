@@ -76,12 +76,14 @@ async function fetchCandidates(input = {}) {
   const cpm = CPM_BY_TOPIC[topic] || 500;
   try {
     // /v1/channels/search works on the free tier (basic fields: title, members, verified)
-    const data = await apiGet('/v1/channels/search', { term, limit: 30 });
-    const rows = rowsOf(data);
-    let real = rows.filter(r => num(pick(r, ['members_count', 'members'])) >= 3000);
-    const ru = real.filter(isRu);                   // prefer Russian channels
-    if (ru.length >= 4) real = ru;
-    if (!real.length) real = rows;                  // relax rather than return nothing
+    let rows = [];
+    try { rows = rowsOf(await apiGet('/v1/channels/search', { term, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 30 })); } catch (e) {}
+    if (!rows.length) rows = rowsOf(await apiGet('/v1/channels/search', { term, limit: 30 }));
+    // prefer real Russian channels (not groups); relax step-by-step rather than return nothing
+    let real = rows.filter(r => pick(r, ['peer', 'peer_type']) !== 'Group' && isRu(r) && num(pick(r, ['members_count', 'members'])) >= 5000);
+    if (real.length < 4) real = rows.filter(r => pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 3000);
+    if (!real.length) real = rows.filter(r => num(pick(r, ['members_count', 'members'])) >= 3000);
+    if (!real.length) real = rows;
     if (!real.length) return null;
     const out = real.slice(0, 20).map((r, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
@@ -122,14 +124,15 @@ async function probeOne(path, params) {
         if (arr) break;
       }
     }
-    return { ok: true, topKeys: keys, arrKey, len: arr ? arr.length : 0, firstKeys: arr && arr[0] ? Object.keys(arr[0]) : [], first: (arr && arr[0]) || (arr ? null : data) };
+    const titles = arr ? arr.slice(0, 8).map(x => x && (x.title || x.name) + ' [' + (x.peer || '') + '/' + (x.country || '') + '/' + (x.members_count || 0) + ']') : [];
+    return { ok: true, topKeys: keys, arrKey, len: arr ? arr.length : 0, firstKeys: arr && arr[0] ? Object.keys(arr[0]) : [], titles };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 async function probe(term) {
   const t = term || 'косметика';
   return {
-    catalog: await probeOne('/v1/catalog/search', { term: t, language: 'ru', limit: 5 }),
-    channels: await probeOne('/v1/channels/search', { term: t, limit: 5 }),
+    channels_plain: await probeOne('/v1/channels/search', { term: t, limit: 8 }),
+    channels_ru: await probeOne('/v1/channels/search', { term: t, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 8 }),
   };
 }
 
