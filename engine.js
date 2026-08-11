@@ -271,13 +271,19 @@ function buildPlan(input = {}) {
   const budget = Number(input.budget) || BASE_BUDGET;
   const exTopics = new Set((input.exclude || []).map(e => EXCLUDE_MAP[e]).filter(Boolean));
 
-  // candidate pool for the detected vertical (beauty keeps its curated 8, others draw from the pool)
-  const pool = vertical === 'beauty'
-    ? (POOL.beauty || BEAUTY).slice(0, 8).filter(c => !exTopics.has(c.topic))
-    : (POOL[vertical] || POOL.generic).filter(c => !exTopics.has(c.topic));
+  // candidate pool: real data source (if provided) wins; otherwise the seed catalog.
+  const realData = Array.isArray(input.candidates) && input.candidates.length > 0;
+  let pool;
+  if (realData) {
+    pool = input.candidates.filter(c => !exTopics.has(c.topic));
+  } else if (vertical === 'beauty') {
+    pool = (POOL.beauty || BEAUTY).slice(0, 8).filter(c => !exTopics.has(c.topic));
+  } else {
+    pool = (POOL[vertical] || POOL.generic).filter(c => !exTopics.has(c.topic));
+  }
   // brand-aware match, then rank
   const scored = scoreCandidates(pool, (desc + ' ' + brand)).sort((a, b) => b.match - a.match);
-  const base = vertical === 'beauty' ? scored : scored.slice(0, 6);
+  const base = realData ? scored.slice(0, 8) : (vertical === 'beauty' ? scored : scored.slice(0, 6));
   const wsum = base.reduce((s, c) => s + (c.w || 10000), 0) || 1;
   const chans = base.map(c => {
     const price = Math.max(1000, Math.round(budget * (c.w || 10000) / wsum / 500) * 500);
@@ -313,6 +319,7 @@ function buildPlan(input = {}) {
     groups: groupTotals(chans),
     plan: { overlap: overlapOf(chans), confidence: confidenceOf(chans), clicks: clicksRange(totals.views) },
     source: 'engine',
+    dataSource: realData ? 'telemetr' : 'seed',
   };
 }
 

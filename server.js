@@ -35,6 +35,7 @@ const crypto = require('crypto');
 const engine = require('./engine');
 const store = require('./store');
 const ai = require('./ai');
+const source = require('./source');
 const { PRODUCTS, untilFor } = require('./products');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -143,7 +144,17 @@ async function handler(req, res) {
       try { return send(res, 200, fs.readFileSync(CLIENT_JS, 'utf8'), { 'content-type': 'application/javascript; charset=utf-8' }); }
       catch (e) { return send(res, 404, '// not found'); }
     }
-    if (p === '/health') return send(res, 200, { ok: true });
+    if (p === '/health') return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed' });
+    // public diagnostic: verifies the real channel source actually returns data
+    if (p === '/api/source-check') {
+      const out = { enabled: source.enabled(), count: 0, names: [], error: null };
+      try {
+        const c = await source.fetchCandidates({ desc: url.searchParams.get('q') || 'косметика уход кожа', vertical: url.searchParams.get('v') || 'beauty' });
+        out.count = c ? c.length : 0;
+        out.names = (c || []).slice(0, 6).map(x => x.name + ' (' + x.subs + ')');
+      } catch (e) { out.error = String(e.message || e); }
+      return send(res, 200, out);
+    }
 
     // Telegram webhook (payments)
     if (p === '/api/telegram/webhook' && req.method === 'POST') {
@@ -173,14 +184,17 @@ async function handler(req, res) {
       if (p === '/api/config' && req.method === 'GET') {
         return send(res, 200, {
           ai: ai.enabled(), aiProvider: ai.provider(), model: ai.enabled() ? ai.model() : null,
+          dataSource: source.enabled() ? 'telemetr' : 'seed',
           catalog: engine.catalogStats(), requiresAuth: !!BOT_TOKEN, devAuth: DEV_AUTH,
           products: PRODUCTS, user: { id: user.id, name: user.name, verified: user.verified },
           pro: store.getGrants(user.id),
         });
       }
-      if (p === '/api/analyze' && req.method === 'POST') {
-        const b = await readBody(req);
-        let plan = engine.buildPlan(b);
+      if (p === '/api/analyze' && (req.method === 'POST' || req.method === 'GET')) {
+        const b = req.method === 'POST' ? await readBody(req) : Object.fromEntries(url.searchParams);
+        let candidates = null;
+        try { candidates = await source.fetchCandidates(b); } catch (e) {}
+        let plan = engine.buildPlan(Object.assign({}, b, { candidates }));
         plan = await ai.enrich(b, plan);
         return send(res, 200, plan);
       }
