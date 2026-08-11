@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/handler.js", "use": "@vercel/node" },
+    { "src": "public/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/handler.js" },
+    { "src": "/health", "dest": "/api/handler.js" },
+    { "src": "/bradar-api.js", "dest": "/public/bradar-api.js" },
+    { "src": "/(.*)", "dest": "/public/index.html" }
+  ]
+}
