@@ -71,31 +71,28 @@ async function fetchCandidates(input = {}) {
   if (!enabled()) return null;
   const vertical = input.vertical || 'generic';
   const term = termOf(input.desc, vertical);
+  const topic = topicOf(null, vertical);            // free tier: no per-result category
+  const cpm = CPM_BY_TOPIC[topic] || 500;
   try {
-    const data = await apiGet('/v1/catalog/search', {
-      term, language: 'ru', members_min: 5000,
-      sort_by: 'members', sort_direction: 'desc', limit: 16,
-    });
-    const rows = rowsOf(data);
-    if (!rows.length) return null;
-    const out = rows.map((r, i) => {
+    // /v1/channels/search works on the free tier (basic fields: title, members, verified)
+    const data = await apiGet('/v1/channels/search', { term, peer_type: 'Channel', language: 'ru', country: 'russia', limit: 24 });
+    let rows = rowsOf(data);
+    let real = rows.filter(r => (pick(r, ['peer', 'peer_type']) === 'Channel' || !pick(r, ['peer', 'peer_type'])) && num(pick(r, ['members_count', 'members'])) >= 3000);
+    if (!real.length) real = rows;                  // relax filters rather than return nothing
+    if (!real.length) return null;
+    const out = real.slice(0, 20).map((r, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
-      const subs = num(pick(r, ['members_count', 'members', 'participants_count', 'subscribers']));
-      const reach = num(pick(r, ['avg_post_views', 'avg_views', 'views', 'avg_post_reach'])) || Math.round(subs * 0.25);
-      const errRaw = pick(r, ['err_percent', 'err', 'er_percent', 'engagement']);
-      const err = num(errRaw);
-      const topic = topicOf(pick(r, ['category', 'category_name']), vertical);
-      const cpm = CPM_BY_TOPIC[topic] || 500;
-      const base = Math.max(55, Math.min(88, Math.round(60 + err * 3)));
-      const id = 'tm' + (pick(r, ['internal_id', 'id', 'channel_id']) || i);
+      const subs = num(pick(r, ['members_count', 'members', 'participants_count']));
+      const reach = Math.max(500, Math.round(subs * 0.22));   // estimate (real reach is paid-tier)
+      const iid = pick(r, ['internal_id', 'id']);
+      const uname = pick(r, ['username', 'link', 'peer_id']);
       return {
-        id, name: title, handle: handleOf(pick(r, ['link', 'username', 'url']), title),
-        cat: pick(r, ['category', 'category_name']) || 'Telegram-канал', topic,
-        subs, match: base, cpm, reach,
-        eng: (err ? String(err).replace('.', ',') : '—') + (err ? '%' : ''),
-        adShare: pick(r, ['ad_percent', 'ads_percent']) != null ? num(pick(r, ['ad_percent', 'ads_percent'])) + '%' : '',
-        w: reach || subs || 10000,
-        verified: !!pick(r, ['verified', 'is_verified']),
+        id: 'tm' + (iid || i), name: title,
+        handle: uname ? handleOf(uname, title) : '',
+        link: iid ? 'https://telemetr.io/channels/' + iid : '',
+        cat: 'Telegram-канал', topic,
+        subs, match: 70, cpm, reach, eng: '', adShare: '',
+        w: subs || 10000, verified: !!pick(r, ['verified', 'is_verified']),
         risks: [], why: [], verdict: 'Подходит', verdictSub: '',
         vColor: 'var(--teal)', vBg: '#F4FAF9', av: avOf(title),
         placement: { price: 0, clicks: '' },
