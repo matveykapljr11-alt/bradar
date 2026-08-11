@@ -108,4 +108,29 @@ async function fetchCandidates(input = {}) {
   }
 }
 
-module.exports = { enabled, fetchCandidates, termOf, topicOf };
+// ---- diagnostics: reveal the real response shape so mapping can be fixed ----
+async function probeOne(path, params) {
+  try {
+    const data = await apiGet(path, params);
+    if (Array.isArray(data)) return { ok: true, arrKey: '(root)', len: data.length, firstKeys: data[0] ? Object.keys(data[0]) : [], first: data[0] || null };
+    const keys = data && typeof data === 'object' ? Object.keys(data) : [];
+    let arr = null, arrKey = null;
+    for (const k of keys) {
+      if (Array.isArray(data[k])) { arr = data[k]; arrKey = k; break; }
+      if (data[k] && typeof data[k] === 'object') {
+        for (const k2 of Object.keys(data[k])) if (Array.isArray(data[k][k2])) { arr = data[k][k2]; arrKey = k + '.' + k2; break; }
+        if (arr) break;
+      }
+    }
+    return { ok: true, topKeys: keys, arrKey, len: arr ? arr.length : 0, firstKeys: arr && arr[0] ? Object.keys(arr[0]) : [], first: (arr && arr[0]) || (arr ? null : data) };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+async function probe(term) {
+  const t = term || 'косметика';
+  return {
+    catalog: await probeOne('/v1/catalog/search', { term: t, language: 'ru', limit: 5 }),
+    channels: await probeOne('/v1/channels/search', { term: t, limit: 5 }),
+  };
+}
+
+module.exports = { enabled, fetchCandidates, termOf, topicOf, probe };

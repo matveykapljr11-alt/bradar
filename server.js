@@ -147,6 +147,10 @@ async function handler(req, res) {
     if (p === '/health') return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed' });
     // public diagnostic: verifies the real channel source actually returns data
     if (p === '/api/source-check') {
+      if (url.searchParams.get('raw')) {
+        try { return send(res, 200, await source.probe(url.searchParams.get('q'))); }
+        catch (e) { return send(res, 200, { error: String(e.message || e) }); }
+      }
       const out = { enabled: source.enabled(), count: 0, names: [], error: null };
       try {
         const c = await source.fetchCandidates({ desc: url.searchParams.get('q') || 'косметика уход кожа', vertical: url.searchParams.get('v') || 'beauty' });
