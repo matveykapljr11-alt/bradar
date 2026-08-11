@@ -54,7 +54,7 @@ function termOf(desc, vertical) {
 async function apiGet(path, params) {
   const url = new URL(BASE + path);
   Object.entries(params || {}).forEach(([k, v]) => { if (v != null) url.searchParams.set(k, v); });
-  const res = await fetch(url, { headers: { api_key: KEY, accept: 'application/json' } });
+  const res = await fetch(url, { headers: { 'X-API-Key': KEY, accept: 'application/json' } });
   if (!res.ok) throw new Error('telemetr ' + res.status + ' ' + (await res.text()).slice(0, 200));
   return res.json();
 }
