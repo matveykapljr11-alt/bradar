@@ -1696,8 +1696,7 @@ function genPrintHTML(){
   </div>
   <table><thead><tr><th>#</th><th>Канал</th><th>Тематика</th><th>Подписчики</th><th>Соотв.</th><th>CPM</th><th>Цена</th><th>Прогноз</th></tr></thead><tbody>${rows}</tbody></table>
   <p class=note>Распределение бюджета: основное ядро ${g.core.pct}%, смежные ${g.adj.pct}%, эксперименты ${g.exp.pct}%. Прогноз основан на предыдущих показателях каналов и не гарантирует результат кампании.</p>
-  <script src="/bradar-api.js"></script>
-</body></html>`;
+  </body></html>`;
 }
 function shareText(){
   const t=planTotals();
@@ -1768,5 +1767,6 @@ function postRender(){
 try{ var fav=document.createElement('link'); fav.rel='icon'; fav.href=LOGO_ICON; document.head.appendChild(fav); }catch(e){}
 go('onboard',false);
 </script>
+<script src="/bradar-api.js"></script>
 </body>
 </html>

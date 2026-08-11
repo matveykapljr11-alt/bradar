@@ -119,7 +119,10 @@ function serveApp(res) {
   let client = '';
   try { client = fs.readFileSync(CLIENT_JS, 'utf8'); } catch (e) {}
   const inject = '\n<script>\n' + client + '\n</script>\n';
-  html = html.replace(/<\/body>/i, inject + '</body>');
+  // insert before the LAST </body> — the app's own JS contains a literal "</body>"
+  // (print-PDF helper), so a first-match replace would land inside the script.
+  const i = html.lastIndexOf('</body>');
+  html = i >= 0 ? html.slice(0, i) + inject + html.slice(i) : html + inject;
   send(res, 200, html, { 'content-type': 'text/html; charset=utf-8' });
 }
 
