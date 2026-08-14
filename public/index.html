@@ -429,9 +429,12 @@ function setupBrandFromInput(){
   const v=detectVertical(S.brand.desc); S.vertical=v;
   const m=V_META[v];
   S.brand.name=guessBrandName(S.brand.desc,m.brand);
-  S.brand.site=m.site; S.brand.channel=m.handle;
+  const pr=S.profile||{};
+  S.brand.site=pr.site||m.site; S.brand.channel=pr.channel||m.handle;
   S.tags=m.tags.slice();
-  if(m.aud) S.brief.audience=m.aud;
+  // audience: keep the user's saved/edited one; only auto-suggest when empty
+  if(pr.audience) S.brief.audience=pr.audience;
+  else if(m.aud && !String(S.brief.audience||'').trim()) S.brief.audience=m.aud;
 }
 
 /* ---- plan builder & derived metrics ---- */
@@ -514,6 +517,7 @@ const S={
   sort:'match',showAll:false,
   saved:DB.get('plans',[]),
   favs:DB.get('favs',[]),
+  profile:DB.get('profile',{desc:'',site:'',channel:'',audience:''}),
   currentPlanId:null,
   exportFmt:'PDF',
   history:[],
@@ -1296,6 +1300,19 @@ SCREENS.profile=function(){
       </div>
       <div class="mgrid"><div class="cell"><div class="v tnum">${S.saved.length}</div><div class="k">медиапланов</div></div><div class="cell"><div class="v tnum">${S.favs.length}</div><div class="k">в избранном</div></div></div>
     </div>
+    <div class="card lg" style="margin-bottom:14px">
+      <div style="font:700 12.5px Manrope;color:var(--navy);margin-bottom:4px">Профиль бренда</div>
+      <p class="hint" style="margin-bottom:10px">Подставляется в подбор автоматически. В самом подборе можно ввести другой бренд.</p>
+      <div style="font:600 11px Manrope;color:rgba(16,38,74,.5);margin:0 0 4px">О бренде, продукте и вашей аудитории</div>
+      <textarea id="profDesc" maxlength="1500" style="width:100%;box-sizing:border-box;resize:none;min-height:88px;padding:11px 12px;background:#F3F8FF;border:1px solid var(--bd);border-radius:11px;font:500 12.5px/1.55 Manrope;color:var(--navy);outline:none" placeholder="Мы — … Продаём через … Хотим …">${esc(S.profile.desc||'')}</textarea>
+      <div style="font:600 11px Manrope;color:rgba(16,38,74,.5);margin:10px 0 4px">Кого хотите привлечь</div>
+      <textarea id="profAud" maxlength="400" style="width:100%;box-sizing:border-box;resize:none;min-height:52px;padding:11px 12px;background:#F3F8FF;border:1px solid var(--bd);border-radius:11px;font:500 12.5px/1.55 Manrope;color:var(--navy);outline:none" placeholder="Например: женщины 25–40, интересующиеся уходом за собой">${esc(S.profile.audience||'')}</textarea>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="profSite" maxlength="120" style="flex:1;min-width:0;box-sizing:border-box;padding:10px 12px;background:#F3F8FF;border:1px solid var(--bd);border-radius:11px;font:500 12.5px Manrope;color:var(--navy);outline:none" placeholder="сайт" value="${esc(S.profile.site||'')}">
+        <input id="profChannel" maxlength="60" style="flex:1;min-width:0;box-sizing:border-box;padding:10px 12px;background:#F3F8FF;border:1px solid var(--bd);border-radius:11px;font:500 12.5px Manrope;color:var(--navy);outline:none" placeholder="@канал" value="${esc(S.profile.channel||'')}">
+      </div>
+      <button class="cta" data-act="saveProfile" style="margin-top:12px">Сохранить профиль</button>
+    </div>
     <div class="card" style="margin-bottom:14px">
       <div style="font:700 12.5px Manrope;color:var(--navy);margin-bottom:11px">Быстрые действия</div>
       <div style="display:flex;flex-direction:column;gap:9px">
@@ -1614,13 +1631,28 @@ document.addEventListener('click',e=>{
     case 'sortMatch': S.sort='match'; render(); reactivate(); break;
     case 'sortCpm': S.sort='cpm'; render(); reactivate(); break;
     case 'toggleAll': S.showAll=!S.showAll; render(); reactivate(); break;
+    case 'saveProfile': saveProfile(); break;
     case 'resetData': resetData(); break;
   }
 });
 function reactivate(){ const el=$('screen-'+CURRENT); if(el) el.classList.add('active'); postRender(); }
+function saveProfile(){
+  DB.set('profile',S.profile);
+  if(String(S.profile.desc||'').trim()){
+    S.brand.desc=S.profile.desc;
+    setupBrandFromInput();               // derive vertical/name/tags; respects profile site/channel/audience
+  }else{
+    if(S.profile.site) S.brand.site=S.profile.site;
+    if(S.profile.channel) S.brand.channel=S.profile.channel;
+    if(S.profile.audience) S.brief.audience=S.profile.audience;
+  }
+  toast('Профиль сохранён — подставим в подбор'); haptic('ok');
+  render(); reactivate();
+}
 function resetData(){
   if(!confirm('Удалить все сохранённые медиапланы и избранное?')) return;
   S.saved=[]; S.favs=[]; S.currentPlanId=null; DB.del('plans'); DB.del('favs');
+  S.profile={desc:'',site:'',channel:'',audience:''}; DB.del('profile');
   toast('Данные очищены'); render(); reactivate();
 }
 function openReplaceSheetAdd(){ toast('Добавление канала из каталога — в разработке'); }
@@ -1635,6 +1667,10 @@ document.addEventListener('input',e=>{
     const hint=$('findHint'); if(hint)hint.textContent=filled?'Продолжим — проверим, что поняли правильно':'Опишите бренд, чтобы продолжить';
   }
   if(e.target.id==='audInput'){ S.brief.audience=e.target.value; }
+  if(e.target.id==='profDesc'){ S.profile.desc=e.target.value; }
+  if(e.target.id==='profAud'){ S.profile.audience=e.target.value; }
+  if(e.target.id==='profSite'){ S.profile.site=e.target.value; }
+  if(e.target.id==='profChannel'){ S.profile.channel=e.target.value; }
 });
 
 function refreshBrief(){
@@ -1763,6 +1799,8 @@ function postRender(){
 
 /* ---- boot ---- */
 try{ var fav=document.createElement('link'); fav.rel='icon'; fav.href=LOGO_ICON; document.head.appendChild(fav); }catch(e){}
+// apply a saved brand profile: pre-fill onboarding + drive the подбор
+try{ if(S.profile && String(S.profile.desc||'').trim()){ S.brand.desc=S.profile.desc; setupBrandFromInput(); } }catch(e){}
 go('onboard',false);
 </script>
 <script src="/bradar-api.js"></script>

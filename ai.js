@@ -68,7 +68,7 @@ function buildUserPrompt(input, plan) {
   }));
   return [
     'БРЕНД: ' + (input.desc || input.brand || ''),
-    'БРИФ: ' + JSON.stringify({ goal: input.goal, geo: input.geo, budget: plan.budget, exclude: input.exclude || [] }),
+    'БРИФ: ' + JSON.stringify({ goal: input.goal, geo: input.geo, audience: input.audience, budget: plan.budget, exclude: input.exclude || [] }),
     'ОТОБРАННЫЕ КАНАЛЫ (метрики фиксированы, не меняй):',
     JSON.stringify(chans),
     '',

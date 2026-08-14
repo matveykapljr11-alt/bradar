@@ -83,7 +83,7 @@
       buildPlan = function () {
         _build.apply(this, arguments); // instant local plan first
         try {
-          var body = { desc: S.brand.desc, brand: S.brand.name, vertical: S.vertical, budget: S.brief.budget, exclude: S.brief.exclude, goal: S.brief.goal, geo: S.brief.geo };
+          var body = { desc: S.brand.desc, brand: S.brand.name, vertical: S.vertical, budget: S.brief.budget, exclude: S.brief.exclude, goal: S.brief.goal, geo: S.brief.geo, audience: S.brief.audience };
           api('/api/analyze', { method: 'POST', body: JSON.stringify(body) }).then(function (plan) {
             if (!plan || !Array.isArray(plan.channels) || !plan.channels.length) return;
             S.channels = plan.channels;
