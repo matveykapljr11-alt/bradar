@@ -411,12 +411,12 @@ function detectVertical(text){
   return 'generic';
 }
 const V_META={
-  beauty:{brand:'Sensé',site:'sense-skin.ru',handle:'@sense_skin',tags:['уход за кожей','чувствительная кожа','женщины 25–40','маркетплейсы','осознанное потребление']},
-  fashion:{brand:'ваш бренд',site:'brand.ru',handle:'@brand',tags:['одежда','базовый гардероб','стиль','женская аудитория','сезонная коллекция']},
-  edu:{brand:'ваша школа',site:'school.ru',handle:'@school',tags:['обучение','заявки','взрослая аудитория','пробный урок','развитие']},
-  app:{brand:'ваше приложение',site:'app.ru',handle:'@app',tags:['мобильное приложение','установки','здоровье','осознанность','25–40']},
-  b2b:{brand:'ваш сервис',site:'service.ru',handle:'@service',tags:['B2B','заявки','предприниматели','малый бизнес','автоматизация']},
-  generic:{brand:'ваш бренд',site:'brand.ru',handle:'@brand',tags:['аудитория 25–40','узнаваемость','продажи','lifestyle','города-миллионники']},
+  beauty:{brand:'Sensé',site:'sense-skin.ru',handle:'@sense_skin',tags:['уход за кожей','чувствительная кожа','женщины 25–40','маркетплейсы','осознанное потребление'],aud:'Женщины 25–40, интересующиеся уходом за собой и осознанным потреблением'},
+  fashion:{brand:'ваш бренд',site:'brand.ru',handle:'@brand',tags:['одежда','базовый гардероб','стиль','женская аудитория','сезонная коллекция'],aud:'Женщины 20–35, следящие за модой и стилем'},
+  edu:{brand:'ваша школа',site:'school.ru',handle:'@school',tags:['обучение','заявки','взрослая аудитория','пробный урок','развитие'],aud:'Взрослые 25–40, готовые учиться новому'},
+  app:{brand:'ваше приложение',site:'app.ru',handle:'@app',tags:['мобильное приложение','установки','здоровье','осознанность','25–40'],aud:'Аудитория 25–40, интересующаяся технологиями и здоровьем'},
+  b2b:{brand:'ваш сервис',site:'service.ru',handle:'@service',tags:['B2B','заявки','предприниматели','малый бизнес','автоматизация'],aud:'Предприниматели и специалисты малого и среднего бизнеса'},
+  generic:{brand:'ваш бренд',site:'brand.ru',handle:'@brand',tags:['аудитория 25–40','узнаваемость','продажи','lifestyle','города-миллионники'],aud:'Ваша целевая аудитория 25–40 из крупных городов'},
 };
 // derive brand name from the text (quoted or Latin/Capitalised token), else vertical default
 function guessBrandName(text,def){
@@ -431,6 +431,7 @@ function setupBrandFromInput(){
   S.brand.name=guessBrandName(S.brand.desc,m.brand);
   S.brand.site=m.site; S.brand.channel=m.handle;
   S.tags=m.tags.slice();
+  if(m.aud) S.brief.audience=m.aud;
 }
 
 /* ---- plan builder & derived metrics ---- */
@@ -650,7 +651,7 @@ SCREENS.onboard=function(){
   `<div class="hero a" style="padding-top:6px;padding-bottom:54px;margin-top:-40px;padding-top:46px">
     <div class="hrow" style="margin-bottom:22px">
       <div class="brandmark"><div class="blogo">${logoMark(28)}</div>
-        <div><span class="bname">BRADAR</span><span class="bsub">BY PINLA GROUP</span></div></div>
+        <div><span class="bname">BRADAR</span><span class="bsub">BY KAPIN GROUP</span></div></div>
       ${tg?'':'<span class="hbtn" data-act="close">Закрыть</span>'}
     </div>
     <h1>Найдём Telegram-каналы, которые подходят вашему бренду</h1>
@@ -753,12 +754,8 @@ SCREENS.brief=function(){
     </div>
     <div class="card">
       <div class="rowhead"><span class="aibadge">AI</span><span class="t" style="font-size:13.5px">Кого хотите привлечь?</span></div>
-      <p class="hint" style="margin-bottom:10px">Составили по вашему описанию — поправьте, если что-то не так.</p>
-      <div style="padding:12px 13px;background:#F3F8FF;border:1px dashed #AFC5E4;border-radius:12px;font:600 13px/1.55 Manrope;color:var(--navy)">${b.audience}</div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <span class="pill ${b._aud!=='fix'?'':''}" data-aud="ok" style="background:${b._aud==='fix'?'var(--chip)':'#E9F6F6'};color:${b._aud==='fix'?'rgba(16,38,74,.6)':'#0B7E88'};font-weight:700">Всё верно</span>
-        <span class="pill" data-aud="fix" style="background:var(--chip);color:rgba(16,38,74,.6)">Исправить</span>
-      </div>
+      <p class="hint" style="margin-bottom:10px">Подсказали по описанию — поправьте под себя.</p>
+      <textarea id="audInput" maxlength="400" style="width:100%;box-sizing:border-box;resize:none;min-height:64px;padding:12px 13px;background:#F3F8FF;border:1px dashed #AFC5E4;border-radius:12px;font:600 13px/1.55 Manrope;color:var(--navy);outline:none" placeholder="Например: женщины 25–40, интересующиеся уходом за собой">${esc(b.audience||'')}</textarea>
     </div>
     <div class="card">
       <div style="font:700 13.5px Manrope;color:var(--navy);margin-bottom:5px">Есть ли нежелательные темы?</div>
@@ -1240,7 +1237,7 @@ SCREENS.export=function(){
         <span data-act="download" style="font:700 12px Manrope;color:var(--blue);flex:none">Открыть</span>
       </div>
     </div>
-    <p style="margin:16px 0 0;text-align:center;font:500 11px/1.5 Manrope;color:rgba(16,38,74,.4)">Прогноз основан на предыдущих показателях каналов и не гарантирует результат кампании.<br>BRADAR by Pinla Group</p>
+    <p style="margin:16px 0 0;text-align:center;font:500 11px/1.5 Manrope;color:rgba(16,38,74,.4)">Прогноз основан на предыдущих показателях каналов и не гарантирует результат кампании.<br>BRADAR by Kapin Group</p>
   </div>`;
 };
 
@@ -1290,7 +1287,7 @@ SCREENS.favorites=function(){
 };
 SCREENS.profile=function(){
   const t=S.channels.length?planTotals():null;
-  return tabHero('Профиль','BRADAR by Pinla Group')+
+  return tabHero('Профиль','BRADAR by Kapin Group')+
   `<div class="body" style="padding-top:16px">
     <div class="card lg" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -1349,7 +1346,7 @@ SCREENS.planDesktop=function(){
         <div style="position:absolute;right:60px;top:-120px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.16),rgba(255,255,255,0) 70%)"></div>
         <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid rgba(255,255,255,.14)">
           <div style="display:flex;align-items:center;gap:22px">
-            <div class="brandmark"><div class="blogo" style="width:26px;height:26px">${logoMark(26)}</div><div><span class="bname" style="font-size:14px">BRADAR</span><span class="bsub">BY PINLA GROUP</span></div></div>
+            <div class="brandmark"><div class="blogo" style="width:26px;height:26px">${logoMark(26)}</div><div><span class="bname" style="font-size:14px">BRADAR</span><span class="bsub">BY KAPIN GROUP</span></div></div>
             <div style="display:flex;gap:18px;font:700 12.5px Manrope">
               <span data-act="newSearch" style="color:#fff;cursor:pointer">Новый подбор</span>
               <span style="color:rgba(255,255,255,.55)">Медиапланы</span><span style="color:rgba(255,255,255,.55)">Избранное</span><span style="color:rgba(255,255,255,.55)">Профиль</span></div>
@@ -1637,6 +1634,7 @@ document.addEventListener('input',e=>{
     const btn=$('findBtn'); if(btn)btn.classList.toggle('off',!filled);
     const hint=$('findHint'); if(hint)hint.textContent=filled?'Продолжим — проверим, что поняли правильно':'Опишите бренд, чтобы продолжить';
   }
+  if(e.target.id==='audInput'){ S.brief.audience=e.target.value; }
 });
 
 function refreshBrief(){
@@ -1686,7 +1684,7 @@ function genPrintHTML(){
   th{text-align:left;background:#0E2244;color:#fff;padding:8px 10px;font-size:11px}
   td{padding:9px 10px;border-bottom:1px solid #E6EEFA;vertical-align:top}.m{color:#8DA0C4;font-size:10px}
   .note{margin-top:18px;color:#8DA0C4;font-size:11px}@media print{body{padding:0}}</style></head>
-  <body><img src="${LOGO_FULL}" alt="BRADAR" style="height:30px;margin:0 0 16px;display:block"><h1>Медиаплан для ${esc(S.brand.name)}</h1><p class=sub>by Pinla Group · ${fmtDate(Date.now())}</p>
+  <body><img src="${LOGO_FULL}" alt="BRADAR" style="height:30px;margin:0 0 16px;display:block"><h1>Медиаплан для ${esc(S.brand.name)}</h1><p class=sub>by Kapin Group · ${fmtDate(Date.now())}</p>
   <div class=kpis>
     <div class=kpi><b>${fmt(t.budget)} ₽</b><span>бюджет</span></div>
     <div class=kpi><b>${t.count}</b><span>каналов</span></div>
