@@ -90,6 +90,11 @@ async function searchRu(term) {
   try { return rowsOf(await apiGet('/v1/channels/search', { term, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 20 })); }
   catch (e) { return []; }
 }
+async function statsFor(id) {
+  if (!id) return null;
+  try { return await apiGet('/v1/channel/stats', { internal_id: id }); }
+  catch (e) { return null; }
+}
 async function fetchCandidates(input = {}) {
   if (!enabled()) return null;
   const vertical = input.vertical || 'generic';
@@ -125,19 +130,27 @@ async function fetchCandidates(input = {}) {
     }
     if (!real.length) return null;
     real.sort((a, b) => num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members'])));
-    const out = real.slice(0, 20).map((r, i) => {
+    real = real.slice(0, 12);
+    // enrich with REAL metrics (reach, ER) from channel/stats — parallel, best-effort
+    const stats = await Promise.all(real.map(r => statsFor(pick(r, ['internal_id', 'id']))));
+    const out = real.map((r, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
       const subs = num(pick(r, ['members_count', 'members', 'participants_count']));
-      const reach = Math.max(500, Math.round(subs * 0.22));   // estimate (real reach is paid-tier)
+      const st = stats[i] || {};
+      const realReach = num(st.avg_post_views && (st.avg_post_views.avg_post_views != null ? st.avg_post_views.avg_post_views : st.avg_post_views));
+      const reach = realReach || Math.max(500, Math.round(subs * 0.22));
+      const err = num(st.err_percent);
       const iid = pick(r, ['internal_id', 'id']);
-      const uname = pick(r, ['username', 'link', 'peer_id']);
+      const base = err ? Math.round(60 + Math.min(err, 8) * 3) : Math.round(58 + Math.log10(Math.max(1000, subs)) * 5);
       return {
         id: 'tm' + (iid || i), name: title,
-        handle: uname ? handleOf(uname, title) : '',
+        handle: '',                                    // free tier exposes no @username
         link: iid ? 'https://telemetr.io/channels/' + iid : '',
         cat: 'Telegram-канал', topic,
-        subs, match: Math.max(62, Math.min(82, Math.round(58 + Math.log10(Math.max(1000, subs)) * 5))), cpm, reach, eng: '', adShare: '',
-        w: subs || 10000, verified: !!pick(r, ['verified', 'is_verified']),
+        subs, match: Math.max(60, Math.min(86, base)), cpm, reach,
+        eng: err ? (Math.round(err * 10) / 10).toString().replace('.', ',') + '%' : '',
+        adShare: '',
+        w: reach || subs || 10000, verified: !!pick(r, ['verified', 'is_verified']),
         risks: [], why: [], verdict: 'Подходит', verdictSub: '',
         vColor: 'var(--teal)', vBg: '#F4FAF9', av: avOf(title),
         placement: { price: 0, clicks: '' },
