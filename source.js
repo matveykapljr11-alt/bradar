@@ -170,10 +170,14 @@ async function probeOne(path, params) {
 }
 async function probe(term) {
   const t = term || 'косметика';
-  return {
-    channels_plain: await probeOne('/v1/channels/search', { term: t, limit: 8 }),
-    channels_ru: await probeOne('/v1/channels/search', { term: t, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 8 }),
-  };
+  const channels_ru = await probeOne('/v1/channels/search', { term: t, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 8 });
+  let stats = null;
+  try {
+    const rows = rowsOf(await apiGet('/v1/channels/search', { term: t, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 5 }));
+    const id = rows[0] && pick(rows[0], ['internal_id', 'id']);
+    if (id) { const st = await apiGet('/v1/channel/stats', { internal_id: id }); stats = { internal_id: id, keys: st && typeof st === 'object' ? Object.keys(st) : [], sample: st }; }
+  } catch (e) { stats = { error: String(e.message || e) }; }
+  return { channels_ru, stats };
 }
 
 module.exports = { enabled, fetchCandidates, termOf, topicOf, probe };
