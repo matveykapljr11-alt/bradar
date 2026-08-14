@@ -507,10 +507,10 @@ const DB={
 
 /* ---------- app state ---------- */
 const S={
-  brand:{name:'Sensé',desc:'',site:'sense-skin.ru',channel:'@sense_skin',subs:4210,pdf:'Презентация линейки.pdf'},
+  brand:{name:'',desc:'',site:'',channel:'',subs:4210,pdf:'Презентация линейки.pdf'},
   vertical:'beauty',pool:null,
   tags:['уход за кожей','чувствительная кожа','женщины 25–40','маркетплейсы','осознанное потребление'],
-  brief:{goal:'Продажи',geo:'Вся Россия',budget:150000,audience:'Женщины 25–40 лет, живущие в крупных городах, интересующиеся уходом за кожей и осознанным потреблением.',
+  brief:{goal:'Продажи',geo:'Вся Россия',budget:150000,audience:'',
     exclude:['Политика','Азартные игры','Контент 18+']},
   plan:{overlap:12,clicks:'2 400–3 100',confidence:'Средняя'},
   channels:CHANNELS.map(c=>Object.assign({},c)),
@@ -1296,7 +1296,7 @@ SCREENS.profile=function(){
     <div class="card lg" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
         <div style="width:48px;height:48px;border-radius:14px;background:var(--gradB);display:flex;align-items:center;justify-content:center;font:800 18px Manrope;color:#fff">${(S.brand.name||'B')[0].toUpperCase()}</div>
-        <div><div style="font:800 16px Manrope;color:var(--navy)">${S.brand.name||'Ваш бренд'}</div><div style="font:500 12px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${S.brand.site||''}</div></div>
+        <div><div style="font:800 16px Manrope;color:var(--navy)">${S.brand.name||'Ваш бренд'}</div><div style="font:500 12px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${S.profile.site||(S.brand.name?'':'профиль не заполнен')}</div></div>
       </div>
       <div class="mgrid"><div class="cell"><div class="v tnum">${S.saved.length}</div><div class="k">медиапланов</div></div><div class="cell"><div class="v tnum">${S.favs.length}</div><div class="k">в избранном</div></div></div>
     </div>
@@ -1610,7 +1610,7 @@ document.addEventListener('click',e=>{
     case 'close': if(tg&&tg.close) tg.close(); else toast('Закрыть'); break;
     case 'toConfirm': if(S.brand.desc.trim()){ setupBrandFromInput(); go('confirm'); } break;
     case 'toBrief': go('brief'); break;
-    case 'toAnalysis': buildPlan(); go('analysis'); runAnalysis(); break;
+    case 'toAnalysis': buildPlan(); learnProfile(); go('analysis'); runAnalysis(); break;
     case 'toPlan': go('plan'); break;
     case 'toExport': go('export'); break;
     case 'why': toast('Показываем полную логику стратегии'); break;
@@ -1620,7 +1620,7 @@ document.addEventListener('click',e=>{
     case 'undo': undoReplace(); break;
     case 'pinToggle': toast('Канал зафиксирован в плане'); break;
     case 'addChannel': openReplaceSheetAdd(); break;
-    case 'rebuild': buildPlan(); go('analysis'); runAnalysis(); break;
+    case 'rebuild': buildPlan(); learnProfile(); go('analysis'); runAnalysis(); break;
     case 'download': downloadPlan(); break;
     case 'contacts': toast('Запросили рекламные контакты каналов'); break;
     case 'requests': toast('Отправили запросы на размещение'); break;
@@ -1636,6 +1636,13 @@ document.addEventListener('click',e=>{
   }
 });
 function reactivate(){ const el=$('screen-'+CURRENT); if(el) el.classList.add('active'); postRender(); }
+// after a подбор: auto-fill the brand profile with what we learned (still editable)
+function learnProfile(){
+  if(!String(S.brand.desc||'').trim()) return;
+  S.profile.desc=S.brand.desc;
+  if(String(S.brief.audience||'').trim()) S.profile.audience=S.brief.audience;
+  DB.set('profile',S.profile);
+}
 function saveProfile(){
   DB.set('profile',S.profile);
   if(String(S.profile.desc||'').trim()){
