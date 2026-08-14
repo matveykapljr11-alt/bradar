@@ -158,12 +158,14 @@ const V_META = {
   fashion: { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['одежда','базовый гардероб','стиль','женская аудитория','сезонная коллекция'] },
   edu:     { brand:'ваша школа', site:'school.ru', handle:'@school', tags:['обучение','заявки','взрослая аудитория','пробный урок','развитие'] },
   app:     { brand:'ваше приложение', site:'app.ru', handle:'@app', tags:['мобильное приложение','установки','здоровье','осознанность','25–40'] },
+  crypto:  { brand:'ваш проект', site:'project.io', handle:'@project', tags:['крипта','NFT','инвестиции','трейдинг','Web3'] },
   b2b:     { brand:'ваш сервис', site:'service.ru', handle:'@service', tags:['B2B','заявки','предприниматели','малый бизнес','автоматизация'] },
   generic: { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['аудитория 25–40','узнаваемость','продажи','lifestyle','города-миллионники'] },
 };
 
 function detectVertical(text) {
   const t = (text || '').toLowerCase();
+  if (/нфт|nft|крипт|crypto|токен|блокчейн|web3|биткоин|bitcoin|ethereum|трейд|coin/.test(t)) return 'crypto';
   if (/косметик|уход|кожа|бьюти|beauty|skincare|крем|сыворотк|макияж|парфюм/.test(t)) return 'beauty';
   if (/одежд|мода|fashion|коллекц|обув|аксессуар|гардероб|бренд одежды/.test(t)) return 'fashion';
   if (/школ|курс|обучен|educ|english|англ|язык|урок|вебинар|образован|репетит/.test(t)) return 'edu';

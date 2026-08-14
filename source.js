@@ -15,20 +15,21 @@ const BASE = process.env.TELEMETR_BASE || 'https://api.tlmtr.io';
 function enabled() { return !!KEY; }
 
 // estimated CPM (₽ per 1000 views) by topic — rough RU market; tweak freely
-const CPM_BY_TOPIC = { skincare: 560, beauty: 560, fashion: 520, edu: 420, app: 460, b2b: 640, lifestyle: 500, conscious: 480, wellness: 470, news: 680, finance: 700 };
+const CPM_BY_TOPIC = { skincare: 560, beauty: 560, fashion: 520, edu: 420, app: 460, b2b: 640, lifestyle: 500, conscious: 480, wellness: 470, news: 680, finance: 700, crypto: 750 };
 // map a Telemetr category string → our topic (for budget grouping + CPM)
 function topicOf(category, vertical) {
   const c = (category || '').toLowerCase();
   if (/beaut|космет|уход|краса/.test(c)) return 'skincare';
   if (/fashion|мода|одежд|стиль/.test(c)) return 'fashion';
   if (/educ|обуч|образов|курс|язык/.test(c)) return 'edu';
+  if (/нфт|nft|крипт|crypto|токен|блокчейн|web3/.test(c)) return 'crypto';
   if (/tech|app|прилож|гаджет|it|софт/.test(c)) return 'app';
   if (/business|бизнес|marketing|маркет|финанс|finance/.test(c)) return 'b2b';
   if (/health|wellness|спорт|фитнес|зож|здоров/.test(c)) return 'wellness';
   if (/news|новост/.test(c)) return 'news';
   if (/эко|осознан|conscious/.test(c)) return 'conscious';
   // fall back to the detected vertical's own topic-ish default
-  return ({ beauty: 'skincare', fashion: 'fashion', edu: 'edu', app: 'app', b2b: 'b2b' })[vertical] || 'lifestyle';
+  return ({ beauty: 'skincare', fashion: 'fashion', edu: 'edu', app: 'app', b2b: 'b2b', crypto: 'crypto' })[vertical] || 'lifestyle';
 }
 
 const AVPAL = [['#F3D9DC', '#E8B9C4', '#8A5763'], ['#F6E7CF', '#E9C89A', '#8A6B37'], ['#DCE4F5', '#B9C8E8', '#5A6B90'], ['#D9EFEA', '#AFDCD2', '#3E7A6E'], ['#E3EAF8', '#BFCFEC', '#4F638C'], ['#F0E4F2', '#D3BEDD', '#6E5A82'], ['#E6E0F5', '#C6B6E0', '#645488'], ['#DDEFE6', '#B3D9C4', '#417A5E']];
@@ -42,24 +43,31 @@ function handleOf(link, title) {
   return '@' + (m ? m[1] : String(title || 'channel').replace(/[^A-Za-z0-9_]/g, '').slice(0, 16) || 'channel');
 }
 
-// derive a search term from the brand description
-const STOP = new Set(['наш', 'наша', 'наше', 'для', 'как', 'что', 'это', 'или', 'бренд', 'канал', 'хотим', 'через', 'сайт', 'себя', 'наши', 'свои', 'также', 'чтобы', 'когда', 'можно', 'продаём', 'маркетплейс', 'москов', 'увеличить', 'продажи']);
-// curated single-word search terms per vertical (multi-word over-filters Telemetr's free search)
+// generic/common words that make search too broad — drop them so brand-specific terms surface
+const STOP = new Set(['наш', 'наша', 'наше', 'для', 'как', 'что', 'это', 'или', 'бренд', 'канал', 'хотим', 'через', 'сайт', 'себя', 'наши', 'свои', 'также', 'чтобы', 'когда', 'можно', 'продаём', 'продаем', 'маркетплейс', 'москов', 'увеличить', 'продажи', 'приложение', 'приложения', 'сервис', 'платформа', 'телеграм', 'telegram', 'помощью', 'который', 'которого', 'которая', 'которые', 'оценивать', 'оценить', 'следить', 'следит', 'ценами', 'цены', 'цена', 'позволяет', 'помогает', 'делать', 'клиентов', 'пользователей', 'аудитории', 'аудиторию', 'реклама', 'рекламы']);
+// curated fallback search terms per vertical (used only if the brand's own words are too few)
 const VERTICAL_TERMS = {
   beauty: ['косметика', 'уход', 'бьюти', 'макияж', 'парфюм'],
   fashion: ['мода', 'стиль', 'одежда', 'гардероб', 'образ'],
   edu: ['английский', 'курсы', 'обучение', 'образование', 'язык'],
   app: ['приложения', 'гаджеты', 'технологии', 'лайфхаки'],
+  crypto: ['нфт', 'nft', 'крипта', 'криптовалюта', 'биржа', 'инвестиции'],
   b2b: ['бизнес', 'маркетинг', 'предприниматель', 'продажи', 'стартап'],
   generic: ['новости', 'лайфстайл', 'саморазвитие', 'психология', 'интересное'],
 };
-function termsFor(desc, vertical) {
-  const brand = String(desc || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').split(/\s+/)
-    .filter(w => w.length >= 5 && !STOP.has(w)).slice(0, 2);
-  const base = VERTICAL_TERMS[vertical] || VERTICAL_TERMS.generic;
-  return [...new Set([...brand, ...base])].slice(0, 6);
+// distinctive keywords from the brand text (≥3 chars so «нфт», «wb» survive), minus the brand's own name
+function keywordsFor(desc, brand) {
+  const bn = String(brand || '').toLowerCase();
+  const words = String(desc || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').split(/\s+/)
+    .filter(w => w.length >= 3 && !STOP.has(w) && w !== bn && !(bn.length > 3 && bn.indexOf(w) >= 0));
+  return [...new Set(words)].slice(0, 6);
 }
-function termOf(desc, vertical) { return termsFor(desc, vertical)[0]; }
+function termsFor(desc, vertical, brand) {
+  const kw = keywordsFor(desc, brand);
+  const base = VERTICAL_TERMS[vertical] || VERTICAL_TERMS.generic;
+  return kw.length ? [...kw, ...base] : base;   // brand-specific terms FIRST, vertical only to top up
+}
+function termOf(desc, vertical, brand) { return termsFor(desc, vertical, brand)[0]; }
 function isRu(r) { const c = String(pick(r, ['country']) || '').toLowerCase(); return c === '' || c === 'russia' || c === 'россия' || c === 'ru'; }
 
 async function apiGet(path, params) {
@@ -88,24 +96,28 @@ async function fetchCandidates(input = {}) {
   const topic = topicOf(null, vertical);            // free tier: no per-result category
   const cpm = CPM_BY_TOPIC[topic] || 500;
   try {
-    // aggregate real Russian channels across several vertical keywords
-    const terms = termsFor(input.desc, vertical);
+    const brandKw = keywordsFor(input.desc, input.brand);
+    const base = VERTICAL_TERMS[vertical] || VERTICAL_TERMS.generic;
     const seen = new Set();
     let real = [];
-    for (const t of terms) {
-      const rows = await searchRu(t);
-      for (const r of rows) {
-        const id = pick(r, ['internal_id', 'id']);
-        if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 5000) {
-          seen.add(id); real.push(r);
+    const collect = async (list, target) => {
+      for (const t of list) {
+        const rows = await searchRu(t);
+        for (const r of rows) {
+          const id = pick(r, ['internal_id', 'id']);
+          if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 5000) {
+            seen.add(id); real.push(r);
+          }
         }
+        if (real.length >= target) break;
       }
-      if (real.length >= 16) break;
-    }
+    };
+    await collect(brandKw, 24);                    // brand-specific keywords first (exhaust them)
+    if (real.length < 6) await collect(base, 12);  // top up with vertical terms only if too few
     // last-resort relax (rarely needed): one plain search
     if (real.length < 3) {
       let plain = [];
-      try { plain = rowsOf(await apiGet('/v1/channels/search', { term: terms[0], limit: 30 })); } catch (e) {}
+      try { plain = rowsOf(await apiGet('/v1/channels/search', { term: (brandKw[0] || base[0]), limit: 30 })); } catch (e) {}
       for (const r of plain) {
         const id = pick(r, ['internal_id', 'id']);
         if (id && !seen.has(id) && num(pick(r, ['members_count', 'members'])) >= 3000) { seen.add(id); real.push(r); }
@@ -124,7 +136,7 @@ async function fetchCandidates(input = {}) {
         handle: uname ? handleOf(uname, title) : '',
         link: iid ? 'https://telemetr.io/channels/' + iid : '',
         cat: 'Telegram-канал', topic,
-        subs, match: 70, cpm, reach, eng: '', adShare: '',
+        subs, match: Math.max(62, Math.min(82, Math.round(58 + Math.log10(Math.max(1000, subs)) * 5))), cpm, reach, eng: '', adShare: '',
         w: subs || 10000, verified: !!pick(r, ['verified', 'is_verified']),
         risks: [], why: [], verdict: 'Подходит', verdictSub: '',
         vColor: 'var(--teal)', vBg: '#F4FAF9', av: avOf(title),

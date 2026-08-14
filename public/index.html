@@ -403,6 +403,7 @@ POOL.generic.push(
 // keyword → vertical detection from the free-form brand description
 function detectVertical(text){
   const t=(text||'').toLowerCase();
+  if(/нфт|nft|крипт|crypto|токен|блокчейн|web3|биткоин|bitcoin|ethereum|трейд|coin/.test(t)) return 'crypto';
   if(/косметик|уход|кожа|бьюти|beauty|skincare|крем|сыворотк|макияж|парфюм/.test(t)) return 'beauty';
   if(/одежд|мода|fashion|коллекц|обув|аксессуар|гардероб|бренд одежды/.test(t)) return 'fashion';
   if(/школ|курс|обучен|educ|english|англ|язык|урок|вебинар|образован|репетит/.test(t)) return 'edu';
@@ -415,6 +416,7 @@ const V_META={
   fashion:{brand:'ваш бренд',site:'brand.ru',handle:'@brand',tags:['одежда','базовый гардероб','стиль','женская аудитория','сезонная коллекция'],aud:'Женщины 20–35, следящие за модой и стилем'},
   edu:{brand:'ваша школа',site:'school.ru',handle:'@school',tags:['обучение','заявки','взрослая аудитория','пробный урок','развитие'],aud:'Взрослые 25–40, готовые учиться новому'},
   app:{brand:'ваше приложение',site:'app.ru',handle:'@app',tags:['мобильное приложение','установки','здоровье','осознанность','25–40'],aud:'Аудитория 25–40, интересующаяся технологиями и здоровьем'},
+  crypto:{brand:'ваш проект',site:'project.io',handle:'@project',tags:['крипта','NFT','инвестиции','трейдинг','Web3'],aud:'Аудитория 18–40, интересующаяся криптой, NFT и инвестициями'},
   b2b:{brand:'ваш сервис',site:'service.ru',handle:'@service',tags:['B2B','заявки','предприниматели','малый бизнес','автоматизация'],aud:'Предприниматели и специалисты малого и среднего бизнеса'},
   generic:{brand:'ваш бренд',site:'brand.ru',handle:'@brand',tags:['аудитория 25–40','узнаваемость','продажи','lifestyle','города-миллионники'],aud:'Ваша целевая аудитория 25–40 из крупных городов'},
 };
