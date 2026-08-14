@@ -38,10 +38,17 @@
     window.BRADAR.online = true; window.BRADAR.config = cfg;
   }).catch(function () {});
 
+  function mergeById(local, remote) {
+    var byId = {};
+    (local || []).forEach(function (p) { if (p && p.id) byId[p.id] = p; });
+    (remote || []).forEach(function (p) { if (p && p.id) byId[p.id] = p; });
+    return Object.keys(byId).map(function (k) { return byId[k]; }).sort(function (a, b) { return (b.date || 0) - (a.date || 0); });
+  }
   api('/api/state').then(function (st) {
     if (typeof S === 'undefined') return;
-    if (st && Array.isArray(st.plans)) S.saved = st.plans;
-    if (st && Array.isArray(st.favs)) S.favs = st.favs;
+    // merge, don't overwrite — a failed server sync must not wipe local saves
+    if (st && Array.isArray(st.plans)) S.saved = mergeById(S.saved, st.plans);
+    if (st && Array.isArray(st.favs)) S.favs = mergeById(S.favs, st.favs);
     reRender(['onboard', 'saved', 'favorites', 'profile']);
   }).catch(function () {});
 
