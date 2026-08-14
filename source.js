@@ -181,16 +181,34 @@ async function probeOne(path, params) {
     return { ok: true, topKeys: keys, arrKey, len: arr ? arr.length : 0, firstKeys: arr && arr[0] ? Object.keys(arr[0]) : [], titles };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
+async function resolveUsername(id) {
+  const tried = [];
+  for (const u of ['https://telemetr.io/channels/' + id, 'https://telemetr.io/en/channels/' + id, 'https://tlmtr.io/channels/' + id]) {
+    try {
+      const res = await fetch(u, { headers: { 'user-agent': 'Mozilla/5.0' }, redirect: 'follow' });
+      const html = res.ok ? await res.text() : '';
+      const m = html.match(/t\.me\/([A-Za-z0-9_]{4,32})/);
+      const uname = m && !/^(s|share|joinchat|addstickers|proxy|iv)$/i.test(m[1]) ? m[1] : null;
+      tried.push({ url: u, status: res.status, len: html.length, uname });
+      if (uname) return { uname, from: u };
+    } catch (e) { tried.push({ url: u, error: String(e.message || e) }); }
+  }
+  return { uname: null, tried };
+}
 async function probe(term) {
   const t = term || 'косметика';
   const channels_ru = await probeOne('/v1/channels/search', { term: t, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 8 });
-  let stats = null;
+  let stats = null, resolve = null;
   try {
     const rows = rowsOf(await apiGet('/v1/channels/search', { term: t, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 5 }));
     const id = rows[0] && pick(rows[0], ['internal_id', 'id']);
-    if (id) { const st = await apiGet('/v1/channel/stats', { internal_id: id }); stats = { internal_id: id, keys: st && typeof st === 'object' ? Object.keys(st) : [], sample: st }; }
+    if (id) {
+      const st = await apiGet('/v1/channel/stats', { internal_id: id });
+      stats = { internal_id: id, keys: st && typeof st === 'object' ? Object.keys(st) : [] };
+      resolve = await resolveUsername(id);
+    }
   } catch (e) { stats = { error: String(e.message || e) }; }
-  return { channels_ru, stats };
+  return { channels_ru, stats, resolve };
 }
 
 module.exports = { enabled, fetchCandidates, termOf, topicOf, probe };
