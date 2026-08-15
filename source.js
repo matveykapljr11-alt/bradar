@@ -130,14 +130,25 @@ async function fetchCandidates(input = {}) {
     }
     if (!real.length) return null;
     real.sort((a, b) => num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members'])));
-    real = real.slice(0, 12);
-    // enrich with REAL metrics (reach, ER) from channel/stats — parallel, best-effort
+    real = real.slice(0, 16);
+    // enrich with REAL metrics (reach, posts, ER) from channel/stats — parallel, best-effort
     const stats = await Promise.all(real.map(r => statsFor(pick(r, ['internal_id', 'id']))));
-    const out = real.map((r, i) => {
+    const reachOf = st => num(st && st.avg_post_views && (st.avg_post_views.avg_post_views != null ? st.avg_post_views.avg_post_views : st.avg_post_views));
+    const postsOf = st => num(st && st.messages_count && st.messages_count.last_30_days);
+    // drop dead / frozen channels: no posts in 30 days or zero views
+    let pairs = real.map((r, i) => ({ r, st: stats[i] || {} }));
+    const active = pairs.filter(p => postsOf(p.st) >= 2 && reachOf(p.st) > 0);   // healthy
+    const semi = pairs.filter(p => postsOf(p.st) >= 1 && reachOf(p.st) > 0);     // at least posting
+    if (active.length >= 3) pairs = active;
+    else if (semi.length >= 3) pairs = semi;
+    else if (semi.length) pairs = semi;
+    else if (active.length) pairs = active;
+    // else: keep all (stats unavailable — can't tell; don't wipe the result)
+    pairs = pairs.slice(0, 12);
+    const out = pairs.map(({ r, st }, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
       const subs = num(pick(r, ['members_count', 'members', 'participants_count']));
-      const st = stats[i] || {};
-      const realReach = num(st.avg_post_views && (st.avg_post_views.avg_post_views != null ? st.avg_post_views.avg_post_views : st.avg_post_views));
+      const realReach = reachOf(st);
       const reach = realReach || Math.max(500, Math.round(subs * 0.22));
       const err = num(st.err_percent);
       const iid = pick(r, ['internal_id', 'id']);
