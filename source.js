@@ -49,7 +49,7 @@ const STOP = new Set(['наш', 'наша', 'наше', 'для', 'как', 'ч�
 const VERTICAL_TERMS = {
   beauty: ['косметика', 'уход', 'бьюти', 'макияж', 'парфюм'],
   fashion: ['мода', 'стиль', 'одежда', 'гардероб', 'образ'],
-  edu: ['английский', 'курсы', 'обучение', 'образование', 'язык'],
+  edu: ['обучение', 'курсы', 'образование', 'знания', 'саморазвитие'],
   app: ['приложения', 'гаджеты', 'технологии', 'лайфхаки'],
   crypto: ['нфт', 'nft', 'крипта', 'криптовалюта', 'биржа', 'инвестиции'],
   b2b: ['бизнес', 'маркетинг', 'предприниматель', 'продажи', 'стартап'],
@@ -60,7 +60,8 @@ function keywordsFor(desc, brand) {
   const bn = String(brand || '').toLowerCase();
   const words = String(desc || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').split(/\s+/)
     .filter(w => w.length >= 3 && !STOP.has(w) && w !== bn && !(bn.length > 3 && bn.indexOf(w) >= 0));
-  return [...new Set(words)].slice(0, 6);
+  // most distinctive first (longer, rarer words like «межславянского» before generic «языка»)
+  return [...new Set(words)].sort((a, b) => b.length - a.length).slice(0, 6);
 }
 function termsFor(desc, vertical, brand) {
   const kw = keywordsFor(desc, brand);
@@ -105,31 +106,34 @@ async function fetchCandidates(input = {}) {
     const base = VERTICAL_TERMS[vertical] || VERTICAL_TERMS.generic;
     const seen = new Set();
     let real = [];
-    const collect = async (list, target) => {
+    let rank = 0;
+    const collect = async (list, target, perTerm) => {
       for (const t of list) {
-        const rows = await searchRu(t);
+        const rows = await searchRu(t); let added = 0;
         for (const r of rows) {
           const id = pick(r, ['internal_id', 'id']);
           if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 5000) {
-            seen.add(id); real.push(r);
+            r.__rank = rank; seen.add(id); real.push(r);
+            if (perTerm && ++added >= perTerm) break;  // don't let one generic word dominate
           }
         }
+        rank++;
         if (real.length >= target) break;
       }
     };
-    await collect(brandKw, 24);                    // brand-specific keywords first (exhaust them)
-    if (real.length < 6) await collect(base, 12);  // top up with vertical terms only if too few
-    // last-resort relax (rarely needed): one plain search
+    await collect(brandKw, 24, 6);                 // brand-specific keywords first (most distinctive first)
+    if (real.length < 3) await collect(base, 10);  // vertical terms only if the brand yielded almost nothing
     if (real.length < 3) {
       let plain = [];
       try { plain = rowsOf(await apiGet('/v1/channels/search', { term: (brandKw[0] || base[0]), limit: 30 })); } catch (e) {}
       for (const r of plain) {
         const id = pick(r, ['internal_id', 'id']);
-        if (id && !seen.has(id) && num(pick(r, ['members_count', 'members'])) >= 3000) { seen.add(id); real.push(r); }
+        if (id && !seen.has(id) && num(pick(r, ['members_count', 'members'])) >= 3000) { r.__rank = 99; seen.add(id); real.push(r); }
       }
     }
     if (!real.length) return null;
-    real.sort((a, b) => num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members'])));
+    // keep relevance order: distinctive-term finds first, larger channels within a term
+    real.sort((a, b) => (a.__rank - b.__rank) || (num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members']))));
     real = real.slice(0, 16);
     // enrich with REAL metrics (reach, posts, ER) from channel/stats — parallel, best-effort
     const stats = await Promise.all(real.map(r => statsFor(pick(r, ['internal_id', 'id']))));
