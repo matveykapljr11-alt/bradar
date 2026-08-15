@@ -446,8 +446,10 @@ function setupBrandFromInput(){
   // different brand must NOT inherit the old project's site/channel/audience, or the
   // подбор would be biased toward the previous project.
   const same=sameProject(pr);
-  S.brand.site=(same&&pr.site)||m.site;
-  S.brand.channel=(same&&pr.channel)||m.handle;
+  // only real, user-provided values (from the saved profile of THIS project) — never a
+  // vertical placeholder. Empty → the confirm screen shows no "connected source" row.
+  S.brand.site=(same&&pr.site)||'';
+  S.brand.channel=(same&&pr.channel)||'';
   S.tags=m.tags.slice();
   if(same&&pr.audience) S.brief.audience=pr.audience;                 // same project → keep saved audience
   else if(m.aud && !S.brief._audEdited) S.brief.audience=m.aud;       // new project → fresh vertical default (unless user typed one)
@@ -704,22 +706,25 @@ SCREENS.onboard=function(){
  *  SCREEN 1b — confirm understanding
  * ============================================================= */
 SCREENS.confirm=function(){
+  // show a source row ONLY for what the user actually provided (site / channel in the
+  // profile). No fake "connected site / channel / presentation" — if nothing's given,
+  // show nothing but the description we read.
+  const src=[];
+  if(String(S.brand.site||'').trim()) src.push(srcRow('www',esc(S.brand.site),'указан','var(--teal)'));
+  if(String(S.brand.channel||'').trim()) src.push(srcRow('@',esc(S.brand.channel),'указан','var(--teal)'));
+  const srcBlock=src.length?`<div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px">${src.join('')}</div>`:'';
   return statusBar()+
   `<div class="hero a" style="margin-top:-40px;padding-top:46px;padding-bottom:58px">
     ${heroNav('Назад')}
     <div class="brandmark" style="margin-bottom:18px"><div class="blogo">${logoMark(28)}</div><span class="bname">BRADAR</span></div>
     <h1 style="font-size:23px">Проверим, что мы поняли правильно</h1>
-    <p>Мы прочитали сайт, канал бренда и презентацию.</p>
+    <p>Проверьте, что мы правильно поняли ваш бренд.</p>
   </div>
   <div class="body" style="margin-top:-42px;position:relative;z-index:2">
     <div class="card" style="border:1.5px solid var(--blue);box-shadow:0 4px 16px rgba(22,104,227,.1)">
       <div class="rowhead"><span class="aibadge">AI</span><span class="t">Ваш бренд</span></div>
-      <p style="font:500 13.5px/1.6 Manrope;color:var(--navy);margin-bottom:14px">${esc(S.brand.desc||EXAMPLE_TEXTS['Косметика'])}</p>
-      <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px">
-        ${srcRow('www',S.brand.site||'сайт бренда','изучен','var(--teal)')}
-        ${srcRow('@',(S.brand.channel||'@brand')+' · '+fmt(S.brand.subs||4210)+' подписчиков','изучен','var(--teal)')}
-        ${srcRow('PDF','Презентация.pdf','2,4 МБ','rgba(16,38,74,.35)')}
-      </div>
+      <p style="font:500 13.5px/1.6 Manrope;color:var(--navy);margin-bottom:${src.length?'14px':'0'}">${esc(S.brand.desc||EXAMPLE_TEXTS['Косметика'])}</p>
+      ${srcBlock}
     </div>
     <div style="margin-top:16px;padding:13px 15px;background:var(--soft);border:1px solid #D7E7FC;border-radius:14px">
       <div style="font:700 11.5px Manrope;color:var(--blue);margin-bottom:6px">Мы уже уловили</div>
