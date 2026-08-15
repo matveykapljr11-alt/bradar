@@ -433,16 +433,24 @@ function guessBrandName(text,def){
   if(lat && !/^(Мы|Наш|Наша|Хотим|Продаём|Бренд|Компания)$/i.test(lat[1])) return lat[1];
   return def;
 }
+function sameProject(pr){
+  const norm=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+  return pr && norm(pr.desc) && norm(pr.desc)===norm(S.brand.desc);
+}
 function setupBrandFromInput(){
   const v=detectVertical(S.brand.desc); S.vertical=v;
   const m=V_META[v];
   S.brand.name=guessBrandName(S.brand.desc,m.brand);
   const pr=S.profile||{};
-  S.brand.site=pr.site||m.site; S.brand.channel=pr.channel||m.handle;
+  // Only reuse the saved profile when it's the SAME project (same description). A new/
+  // different brand must NOT inherit the old project's site/channel/audience, or the
+  // подбор would be biased toward the previous project.
+  const same=sameProject(pr);
+  S.brand.site=(same&&pr.site)||m.site;
+  S.brand.channel=(same&&pr.channel)||m.handle;
   S.tags=m.tags.slice();
-  // audience: keep the user's saved/edited one; only auto-suggest when empty
-  if(pr.audience) S.brief.audience=pr.audience;
-  else if(m.aud && !String(S.brief.audience||'').trim()) S.brief.audience=m.aud;
+  if(same&&pr.audience) S.brief.audience=pr.audience;                 // same project → keep saved audience
+  else if(m.aud && !S.brief._audEdited) S.brief.audience=m.aud;       // new project → fresh vertical default (unless user typed one)
 }
 
 /* ---- plan builder & derived metrics ---- */
@@ -1690,7 +1698,7 @@ document.addEventListener('click',e=>{
     case 'download': downloadPlan(); break;
     case 'contacts': toast('Запросили рекламные контакты каналов'); break;
     case 'requests': toast('Отправили запросы на размещение'); break;
-    case 'newSearch': go('onboard'); break;
+    case 'newSearch': newSearch(); break;
     case 'goSaved': go('saved'); break;
     case 'goFav': go('favorites'); break;
     case 'sortToggle': S.sort=S.sort==='cpm'?'match':'cpm'; render(); reactivate(); break;
@@ -1702,6 +1710,13 @@ document.addEventListener('click',e=>{
   }
 });
 function reactivate(){ const el=$('screen-'+CURRENT); if(el) el.classList.add('active'); postRender(); }
+// start a genuinely NEW подбор: blank the brief so the previous project can't bleed
+// into it. The saved profile stays intact (still shown on the Профиль screen).
+function newSearch(){
+  S.brand.desc=''; S.brand.name=''; S.brand.site=''; S.brand.channel=''; S.brand._ex=null;
+  S.brief.audience=''; S.brief._audEdited=false;
+  go('onboard');
+}
 // after a подбор: auto-fill the brand profile with what we learned (still editable)
 function learnProfile(){
   if(!String(S.brand.desc||'').trim()) return;
@@ -1734,12 +1749,14 @@ function openReplaceSheetAdd(){ toast('Добавление канала из к
 document.addEventListener('input',e=>{
   if(e.target.id==='brandInput'){
     S.brand.desc=e.target.value; S.brand._ex=null;
+    // editing the brand text starts a fresh derivation — forget the previous auto/edited audience
+    S.brief._audEdited=false;
     const cnt=$('brandCount'); if(cnt)cnt.textContent=e.target.value.length+' / 1500';
     const filled=e.target.value.trim().length>0;
     const btn=$('findBtn'); if(btn)btn.classList.toggle('off',!filled);
     const hint=$('findHint'); if(hint)hint.textContent=filled?'Продолжим — проверим, что поняли правильно':'Опишите бренд, чтобы продолжить';
   }
-  if(e.target.id==='audInput'){ S.brief.audience=e.target.value; }
+  if(e.target.id==='audInput'){ S.brief.audience=e.target.value; S.brief._audEdited=true; }
   if(e.target.id==='profDesc'){ S.profile.desc=e.target.value; }
   if(e.target.id==='profAud'){ S.profile.audience=e.target.value; }
   if(e.target.id==='profSite'){ S.profile.site=e.target.value; }
@@ -1872,8 +1889,8 @@ function postRender(){
 
 /* ---- boot ---- */
 try{ var fav=document.createElement('link'); fav.rel='icon'; fav.href=LOGO_ICON; document.head.appendChild(fav); }catch(e){}
-// apply a saved brand profile: pre-fill onboarding + drive the подбор
-try{ if(S.profile && String(S.profile.desc||'').trim()){ S.brand.desc=S.profile.desc; setupBrandFromInput(); } }catch(e){}
+// Start blank by default — a new подбор must NOT default to the last project. The saved
+// profile stays available on the Профиль screen (tap «Сохранить профиль» to reuse it).
 go('onboard',false);
 </script>
 <script src="/bradar-api.js"></script>
