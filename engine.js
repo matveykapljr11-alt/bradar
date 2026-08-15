@@ -168,7 +168,7 @@ function detectVertical(text) {
   if (/нфт|nft|крипт|crypto|токен|блокчейн|web3|биткоин|bitcoin|ethereum|трейд|coin/.test(t)) return 'crypto';
   if (/косметик|уход|кожа|бьюти|beauty|skincare|крем|сыворотк|макияж|парфюм/.test(t)) return 'beauty';
   if (/одежд|мода|fashion|коллекц|обув|аксессуар|гардероб|бренд одежды/.test(t)) return 'fashion';
-  if (/школ|курс|обучен|educ|english|англ|язык|урок|вебинар|образован|репетит/.test(t)) return 'edu';
+  if (/школ|курс|обучен|изучен|educ|english|англ|язык|лингвист|грамматик|словар|разговорн|носител|урок|вебинар|образован|репетит|самоучит/.test(t)) return 'edu';
   if (/приложен|\bapp\b|устан|мобильн|медитац|трекер|сервис-приложение/.test(t)) return 'app';
   if (/b2b|saas|бизнес|crm|склад|предпринимат|сервис для|оптов|поставщик/.test(t)) return 'b2b';
   return 'generic';
