@@ -12,6 +12,7 @@ delete process.env.UPSTASH_REDIS_REST_URL;   // use in-memory file backend
 delete process.env.KV_REST_API_URL;
 
 const { handler } = require('./server');
+const store = require('./store');
 const results = [];
 const ok = (n, c) => results.push([n, !!c]);
 
@@ -24,10 +25,11 @@ function signInitData(token, fields) {
   return usp.toString();
 }
 
-// Minimal mock req/res; returns {code, body}.
-function call(method, path, headers) {
+// Minimal mock req/res; returns {code, body}. `body` (object) is exposed as
+// req.body, which readBody() returns directly (mirrors @vercel/node).
+function call(method, path, headers, body) {
   return new Promise((resolve) => {
-    const req = { method, url: path, headers: Object.assign({ host: 'localhost' }, headers || {}) };
+    const req = { method, url: path, headers: Object.assign({ host: 'localhost' }, headers || {}), body };
     const res = {
       _code: 0, _body: '',
       writeHead(code) { this._code = code; return this; },
@@ -69,6 +71,18 @@ function call(method, path, headers) {
   process.env.TELEGRAM_WEBHOOK_SECRET = 's3cr3t';
   const wh = await call('POST', '/api/telegram/webhook', { 'x-telegram-bot-api-secret-token': 'nope' });
   ok('webhook rejects bad secret → 401', wh.code === 401);
+
+  // 8) fail-closed: a forged payment with NO secret configured grants nothing
+  process.env.TELEGRAM_WEBHOOK_SECRET = '';
+  const payUid = 'whpay' + now;
+  const payUpd = { message: { chat: { id: 1 }, from: { id: payUid }, successful_payment: { invoice_payload: 'pro_export', telegram_payment_charge_id: 'x' } } };
+  await call('POST', '/api/telegram/webhook', {}, payUpd);
+  ok('unauthenticated webhook grants nothing', (await store.getGrants(String(payUid))).pro_export !== true);
+
+  // 9) with the secret set AND echoed, a real payment does grant
+  process.env.TELEGRAM_WEBHOOK_SECRET = 'sek';
+  await call('POST', '/api/telegram/webhook', { 'x-telegram-bot-api-secret-token': 'sek' }, payUpd);
+  ok('authenticated webhook grants PRO', (await store.getGrants(String(payUid))).pro_export === true);
 
   const pass = results.filter(r => r[1]).length;
   console.log('\nBRADAR auth test');

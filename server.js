@@ -189,7 +189,11 @@ async function handler(req, res) {
       } else if (upd.message && upd.message.successful_payment) {
         const sp = upd.message.successful_payment;
         const uid = String(upd.message.from.id);
-        if (PRODUCTS[sp.invoice_payload]) await store.grant(uid, sp.invoice_payload, untilFor(sp.invoice_payload), sp.telegram_payment_charge_id);
+        // fail-closed: NEVER grant from an unauthenticated webhook. `secret` truthy
+        // here means TELEGRAM_WEBHOOK_SECRET is set AND was verified above — so a
+        // forged successful_payment (no secret configured) grants nothing.
+        if (!secret) { if (process.env.ACCESS_LOG === '1') console.warn('[webhook] payment ignored — TELEGRAM_WEBHOOK_SECRET not set'); }
+        else if (PRODUCTS[sp.invoice_payload]) await store.grant(uid, sp.invoice_payload, untilFor(sp.invoice_payload), sp.telegram_payment_charge_id);
       }
       return send(res, 200, { ok: true });
     }
