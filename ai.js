@@ -27,6 +27,7 @@ async function callXAI(system, user, maxTokens) {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + XAI_KEY },
     body: JSON.stringify({ model: model(), max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+    signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS) || 12000),
   });
   if (!res.ok) throw new Error('xai ' + res.status + ' ' + (await res.text()).slice(0, 300));
   const data = await res.json();
@@ -37,6 +38,7 @@ async function callAnthropic(system, user, maxTokens) {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({ model: model(), max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }),
+    signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS) || 12000),
   });
   if (!res.ok) throw new Error('anthropic ' + res.status + ' ' + (await res.text()).slice(0, 300));
   const data = await res.json();

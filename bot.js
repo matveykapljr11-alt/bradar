@@ -25,7 +25,7 @@ const fs = require('fs');
 })();
 
 const store = require('./store');
-const { untilFor } = require('./products');
+const { PRODUCTS, untilFor } = require('./products');
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const APP_URL = process.env.APP_URL || process.env.MINIAPP_URL || '';
@@ -34,6 +34,7 @@ async function tg(method, payload) {
   if (!BOT_TOKEN) throw new Error('BOT_TOKEN not set');
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload || {}),
+    signal: AbortSignal.timeout(35000),   // long enough for getUpdates long-poll (timeout:30)
   });
   return res.json();
 }
@@ -42,8 +43,9 @@ async function tg(method, payload) {
 function startKeyboard() {
   return { inline_keyboard: [[{ text: '📡 Открыть BRADAR', web_app: { url: APP_URL } }]] };
 }
-/** Map an incoming update to a single Bot API action (or null). Also applies
- *  side effects (granting PRO) for successful payments. */
+/** Map an incoming update to a single Bot API action (or null). PURE — no side
+ *  effects. The PRO grant for a successful payment is applied by applyPayment()
+ *  (async) in dispatch(), so this stays deterministic and unit-testable. */
 function handleUpdate(upd) {
   if (upd.message && typeof upd.message.text === 'string' && /^\/start\b/.test(upd.message.text)) {
     return {
@@ -53,18 +55,29 @@ function handleUpdate(upd) {
     };
   }
   if (upd.pre_checkout_query) {
-    return { method: 'answerPreCheckoutQuery', pre_checkout_query_id: upd.pre_checkout_query.id, ok: true };
+    // approve only payloads we actually sell
+    const okProd = !!PRODUCTS[upd.pre_checkout_query.invoice_payload];
+    return okProd
+      ? { method: 'answerPreCheckoutQuery', pre_checkout_query_id: upd.pre_checkout_query.id, ok: true }
+      : { method: 'answerPreCheckoutQuery', pre_checkout_query_id: upd.pre_checkout_query.id, ok: false, error_message: 'Товар недоступен' };
   }
   if (upd.message && upd.message.successful_payment) {
-    const sp = upd.message.successful_payment;
-    const uid = String(upd.message.from.id);
-    store.grant(uid, sp.invoice_payload, untilFor(sp.invoice_payload), sp.telegram_payment_charge_id);
     return { method: 'sendMessage', chat_id: upd.message.chat.id, text: 'Оплата получена — BRADAR PRO активирован. Спасибо!' };
   }
   return null;
 }
 
+/** Apply the PRO grant for a successful payment (async, durable store). */
+async function applyPayment(upd) {
+  if (!(upd.message && upd.message.successful_payment)) return null;
+  const sp = upd.message.successful_payment;
+  if (!PRODUCTS[sp.invoice_payload]) return null;   // ignore unknown payloads
+  const uid = String(upd.message.from.id);
+  return store.grant(uid, sp.invoice_payload, untilFor(sp.invoice_payload), sp.telegram_payment_charge_id);
+}
+
 async function dispatch(upd) {
+  await applyPayment(upd);            // side effect first, so the confirmation only follows a real grant
   const action = handleUpdate(upd);
   if (!action) return;
   const { method, ...payload } = action;
@@ -100,7 +113,9 @@ async function main() {
   }
   if (cmd === 'setwebhook') {
     const url = process.argv[3]; if (!url) return fail('usage: node bot.js setwebhook https://you/api/telegram/webhook');
-    console.log(await tg('setWebhook', { url, allowed_updates: ['message', 'pre_checkout_query'] }));
+    const secret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+    if (!secret) console.warn('warning: TELEGRAM_WEBHOOK_SECRET not set — the webhook will be UNAUTHENTICATED (anyone can forge payments). Set it in env and re-run.');
+    console.log(await tg('setWebhook', { url, allowed_updates: ['message', 'pre_checkout_query'], secret_token: secret || undefined }));
     return;
   }
   if (cmd === 'delwebhook') { console.log(await tg('deleteWebhook', {})); return; }
@@ -110,4 +125,4 @@ async function main() {
 
 if (require.main === module) main().catch(e => fail(e.message));
 
-module.exports = { handleUpdate, startKeyboard, dispatch };
+module.exports = { handleUpdate, applyPayment, startKeyboard, dispatch };

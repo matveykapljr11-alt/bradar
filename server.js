@@ -109,6 +109,7 @@ async function tg(method, payload) {
   if (!BOT_TOKEN) throw new Error('BOT_TOKEN not set');
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(8000),
   });
   return res.json();
 }
@@ -144,9 +145,14 @@ async function handler(req, res) {
       try { return send(res, 200, fs.readFileSync(CLIENT_JS, 'utf8'), { 'content-type': 'application/javascript; charset=utf-8' }); }
       catch (e) { return send(res, 404, '// not found'); }
     }
-    if (p === '/health') return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed' });
-    // public diagnostic: verifies the real channel source actually returns data
+    if (p === '/health') return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed', storage: store.usingRedis ? 'redis' : 'file' });
+    // admin-only diagnostic: verifies the real channel source actually returns data.
+    // Gated behind ADMIN_TOKEN so it can't be used to burn Telemetr quota or probe
+    // the upstream shape publicly. Disabled entirely when ADMIN_TOKEN is unset.
     if (p === '/api/source-check') {
+      const admin = process.env.ADMIN_TOKEN || '';
+      const tok = url.searchParams.get('token') || req.headers['x-admin-token'] || '';
+      if (!admin || tok !== admin) return send(res, 404, 'not found');
       if (url.searchParams.get('raw')) {
         try { return send(res, 200, await source.probe(url.searchParams.get('q'))); }
         catch (e) { return send(res, 200, { error: String(e.message || e) }); }
@@ -160,11 +166,19 @@ async function handler(req, res) {
       return send(res, 200, out);
     }
 
-    // Telegram webhook (payments)
+    // Telegram webhook (payments). MUST be authenticated: Telegram echoes the
+    // secret_token we set via setWebhook in this header. Without it, anyone could
+    // POST a fake successful_payment and grant themselves PRO for free.
     if (p === '/api/telegram/webhook' && req.method === 'POST') {
+      const secret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+      if (secret && req.headers['x-telegram-bot-api-secret-token'] !== secret) return send(res, 401, { error: 'bad secret' });
       const upd = await readBody(req);
       if (upd.pre_checkout_query) {
-        await tg('answerPreCheckoutQuery', { pre_checkout_query_id: upd.pre_checkout_query.id, ok: true });
+        // only approve payloads we actually sell
+        const okProd = !!PRODUCTS[upd.pre_checkout_query.invoice_payload];
+        await tg('answerPreCheckoutQuery', okProd
+          ? { pre_checkout_query_id: upd.pre_checkout_query.id, ok: true }
+          : { pre_checkout_query_id: upd.pre_checkout_query.id, ok: false, error_message: 'Товар недоступен' });
       } else if (upd.message && typeof upd.message.text === 'string' && /^\/start\b/.test(upd.message.text)) {
         const app = process.env.APP_URL || '';
         await tg('sendMessage', {
@@ -175,7 +189,7 @@ async function handler(req, res) {
       } else if (upd.message && upd.message.successful_payment) {
         const sp = upd.message.successful_payment;
         const uid = String(upd.message.from.id);
-        store.grant(uid, sp.invoice_payload, untilFor(sp.invoice_payload), sp.telegram_payment_charge_id);
+        if (PRODUCTS[sp.invoice_payload]) await store.grant(uid, sp.invoice_payload, untilFor(sp.invoice_payload), sp.telegram_payment_charge_id);
       }
       return send(res, 200, { ok: true });
     }
@@ -191,7 +205,7 @@ async function handler(req, res) {
           dataSource: source.enabled() ? 'telemetr' : 'seed',
           catalog: engine.catalogStats(), requiresAuth: !!BOT_TOKEN, devAuth: DEV_AUTH,
           products: PRODUCTS, user: { id: user.id, name: user.name, verified: user.verified },
-          pro: store.getGrants(user.id),
+          pro: await store.getGrants(user.id),
         });
       }
       if (p === '/api/analyze' && (req.method === 'POST' || req.method === 'GET')) {
@@ -209,18 +223,18 @@ async function handler(req, res) {
         });
       }
       if (p === '/api/state' && req.method === 'GET') {
-        return send(res, 200, store.getState(user.id));
+        return send(res, 200, await store.getState(user.id));
       }
       if (p === '/api/plans' && req.method === 'POST') {
         const b = await readBody(req);
-        return send(res, 200, store.savePlan(user.id, b));
+        return send(res, 200, await store.savePlan(user.id, b));
       }
       if (p.startsWith('/api/plans/') && req.method === 'DELETE') {
-        return send(res, 200, store.deletePlan(user.id, decodeURIComponent(p.split('/').pop())));
+        return send(res, 200, await store.deletePlan(user.id, decodeURIComponent(p.split('/').pop())));
       }
       if (p === '/api/favs' && req.method === 'PUT') {
         const b = await readBody(req);
-        return send(res, 200, store.setFavs(user.id, b.favs || []));
+        return send(res, 200, await store.setFavs(user.id, b.favs || []));
       }
       if (p === '/api/invoice' && req.method === 'POST') {
         const b = await readBody(req);

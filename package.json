@@ -9,7 +9,7 @@
     "dev": "ALLOW_INSECURE_AUTH=1 node server.js",
     "bot": "node bot.js",
     "prepare-deploy": "node prepare-deploy.js",
-    "test": "node test-engine.js && node test-client.js && node test-bot.js"
+    "test": "node test-engine.js && node test-client.js && node test-bot.js && node test-auth.js"
   },
   "engines": {
     "node": ">=18"

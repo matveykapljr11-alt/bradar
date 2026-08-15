@@ -95,7 +95,7 @@ function isRu(r) { const c = String(pick(r, ['country']) || '').toLowerCase(); r
 async function apiGet(path, params) {
   const url = new URL(BASE + path);
   Object.entries(params || {}).forEach(([k, v]) => { if (v != null) url.searchParams.set(k, v); });
-  const res = await fetch(url, { headers: { 'X-API-Key': KEY, accept: 'application/json' } });
+  const res = await fetch(url, { headers: { 'X-API-Key': KEY, accept: 'application/json' }, signal: AbortSignal.timeout(Number(process.env.TELEMETR_TIMEOUT_MS) || 6000) });
   if (!res.ok) throw new Error('telemetr ' + res.status + ' ' + (await res.text()).slice(0, 200));
   return res.json();
 }
@@ -244,7 +244,7 @@ async function resolveUsername(id) {
   const tried = [];
   for (const u of ['https://telemetr.io/channels/' + id, 'https://telemetr.io/en/channels/' + id, 'https://tlmtr.io/channels/' + id]) {
     try {
-      const res = await fetch(u, { headers: { 'user-agent': 'Mozilla/5.0' }, redirect: 'follow' });
+      const res = await fetch(u, { headers: { 'user-agent': 'Mozilla/5.0' }, redirect: 'follow', signal: AbortSignal.timeout(5000) });
       const html = res.ok ? await res.text() : '';
       const m = html.match(/t\.me\/([A-Za-z0-9_]{4,32})/);
       const uname = m && !/^(s|share|joinchat|addstickers|proxy|iv)$/i.test(m[1]) ? m[1] : null;
