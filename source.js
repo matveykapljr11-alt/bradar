@@ -44,7 +44,23 @@ function handleOf(link, title) {
 }
 
 // generic/common words that make search too broad — drop them so brand-specific terms surface
-const STOP = new Set(['наш', 'наша', 'наше', 'для', 'как', 'что', 'это', 'или', 'бренд', 'канал', 'хотим', 'через', 'сайт', 'себя', 'наши', 'свои', 'также', 'чтобы', 'когда', 'можно', 'продаём', 'продаем', 'маркетплейс', 'москов', 'увеличить', 'продажи', 'приложение', 'приложения', 'сервис', 'платформа', 'телеграм', 'telegram', 'помощью', 'который', 'которого', 'которая', 'которые', 'оценивать', 'оценить', 'следить', 'следит', 'ценами', 'цены', 'цена', 'позволяет', 'помогает', 'делать', 'клиентов', 'пользователей', 'аудитории', 'аудиторию', 'реклама', 'рекламы']);
+const STOP = new Set(['наш', 'наша', 'наше', 'для', 'как', 'что', 'это', 'или', 'бренд', 'канал', 'хотим', 'через', 'сайт', 'себя', 'наши', 'свои', 'также', 'чтобы', 'когда', 'можно', 'продаём', 'продаем', 'маркетплейс', 'москов', 'увеличить', 'продажи', 'приложение', 'приложения', 'сервис', 'платформа', 'телеграм', 'telegram', 'помощью', 'который', 'которого', 'которая', 'которые', 'оценивать', 'оценить', 'следить', 'следит', 'ценами', 'цены', 'цена', 'позволяет', 'помогает', 'делать', 'клиентов', 'пользователей', 'аудитории', 'аудиторию', 'реклама', 'рекламы',
+  // filler / commerce words — never describe the niche, only pollute search
+  'товары', 'товар', 'магазин', 'магазине', 'купить', 'заказать', 'заказ', 'доставка', 'доставкой', 'онлайн', 'каталог', 'ассортимент', 'скидки', 'скидка', 'распродажа', 'лучший', 'лучшие', 'лучшая', 'бесплатно', 'бесплатные', 'бесплатными', 'качество', 'качественный', 'качественные', 'новый', 'новые', 'новая', 'прямой', 'ручной', 'работы']);
+// generic mega-niche + cross-niche homonym words. As a SOLO search each pulls a whole
+// foreign niche (деньги→финансы, детское→родительство, карта→банки/таро, язык→любой язык).
+// They're dropped whenever the brand has its own distinctive words; the detected vertical
+// re-supplies the right ones via VERTICAL_TERMS only if too few real channels are found.
+const MAGNET = new Set([
+  // audience magnets (describe WHO the product is for, not the product)
+  'дети', 'детей', 'детьми', 'детское', 'детская', 'детских', 'детям', 'ребёнок', 'ребенок', 'ребёнка', 'ребенка', 'взрослых', 'взрослые', 'женщин', 'женщины', 'мужчин', 'мужчины', 'подростков', 'подростки', 'родителей', 'родителям',
+  // generic education (any subject) — a specific subject/language stays distinctive
+  'язык', 'языка', 'языки', 'языков', 'изучение', 'изучения', 'обучение', 'обучения', 'образование', 'образования', 'курс', 'курсы', 'курсов', 'урок', 'уроки', 'уроков', 'знания', 'знаний', 'саморазвитие',
+  // mega-niches (a precise product word beats these; the right vertical re-adds them)
+  'деньги', 'финансы', 'доход', 'доходы', 'здоровье', 'здоровья', 'питание', 'еда', 'игра', 'игры', 'игр', 'авто', 'машина', 'машины', 'дом', 'дома', 'домов', 'ремонт', 'спорт', 'фитнес', 'путешествия', 'туризм', 'музыка', 'кино', 'фильмы', 'мода', 'стиль', 'красота', 'уход', 'косметика', 'психология', 'мотивация', 'работа', 'карьера', 'новости', 'политика', 'книги', 'книга', 'инвестиции', 'бизнес', 'маркетинг',
+  // cross-niche homonyms (different meaning in different niches)
+  'карта', 'карты', 'модель', 'модели', 'база', 'базы', 'тон', 'капсула', 'мышь', 'ключ', 'культура', 'правило',
+]);
 // curated fallback search terms per vertical (used only if the brand's own words are too few)
 const VERTICAL_TERMS = {
   beauty: ['косметика', 'уход', 'бьюти', 'макияж', 'парфюм'],
@@ -58,10 +74,15 @@ const VERTICAL_TERMS = {
 // distinctive keywords from the brand text (≥3 chars so «нфт», «wb» survive), minus the brand's own name
 function keywordsFor(desc, brand) {
   const bn = String(brand || '').toLowerCase();
-  const words = String(desc || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').split(/\s+/)
-    .filter(w => w.length >= 3 && !STOP.has(w) && w !== bn && !(bn.length > 3 && bn.indexOf(w) >= 0));
-  // most distinctive first (longer, rarer words like «межславянского» before generic «языка»)
-  return [...new Set(words)].sort((a, b) => b.length - a.length).slice(0, 6);
+  const words = [...new Set(String(desc || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').split(/\s+/)
+    .filter(w => w.length >= 3 && !STOP.has(w) && w !== bn && !(bn.length > 3 && bn.indexOf(w) >= 0)))];
+  const byLen = (a, b) => b.length - a.length;                 // distinctive/longer words first
+  const distinctive = words.filter(w => !MAGNET.has(w)).sort(byLen);
+  const magnets = words.filter(w => MAGNET.has(w)).sort(byLen);
+  // If the brand has its OWN distinctive words, search only those — a lone generic/homonym
+  // word pulls a whole foreign niche. Only when the brand is described purely in generic
+  // terms do we fall back to the magnet words themselves.
+  return (distinctive.length ? distinctive : magnets).slice(0, 6);
 }
 function termsFor(desc, vertical, brand) {
   const kw = keywordsFor(desc, brand);
@@ -121,7 +142,14 @@ async function fetchCandidates(input = {}) {
         if (real.length >= target) break;
       }
     };
-    await collect(brandKw, 24, 6);                 // brand-specific keywords first (most distinctive first)
+    // phrase search first: the top distinctive words together. A channel that matches the
+    // whole phrase is genuinely on-topic — this excludes foreign-niche homonym hits. Harmless
+    // fallthrough: if Telemetr finds nothing for the phrase, single-word search still runs.
+    const phrases = [];
+    if (brandKw.length >= 3) phrases.push(brandKw.slice(0, 3).join(' '));
+    if (brandKw.length >= 2) phrases.push(brandKw.slice(0, 2).join(' '));
+    if (phrases.length) await collect(phrases, 8);
+    await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
     if (real.length < 3) await collect(base, 10);  // vertical terms only if the brand yielded almost nothing
     if (real.length < 3) {
       let plain = [];
@@ -242,4 +270,4 @@ async function probe(term) {
   return { channels_ru, stats, resolve };
 }
 
-module.exports = { enabled, fetchCandidates, termOf, topicOf, probe };
+module.exports = { enabled, fetchCandidates, termOf, topicOf, probe, keywordsFor };
