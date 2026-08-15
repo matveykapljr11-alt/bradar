@@ -181,18 +181,36 @@ body.tg .sbar{display:none}
 .bar>i{display:block;height:100%;border-radius:4px;background:var(--teal2)}
 .stack{display:flex;gap:2px;height:10px;border-radius:6px;overflow:hidden}
 
-/* desktop */
+/* ---------------- desktop app shell (≥1024px) ---------------- */
 .desktop-only{display:none}
+#sidebar{display:none}
+.sb-head{display:flex;align-items:center;gap:9px;font:800 17px Manrope;color:var(--navy);padding:4px 10px 22px}
+.sb-head .blogo{width:30px;height:30px;display:flex;align-items:center;justify-content:center}
+.sb-nav{display:flex;flex-direction:column;gap:4px}
+.sb-item{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:11px;cursor:pointer;font:700 13.5px Manrope;color:rgba(16,38,74,.6);transition:background .15s,color .15s}
+.sb-item:hover{background:var(--soft)}
+.sb-item.on{background:var(--soft);color:var(--blue)}
+.sb-item .sb-ic{width:15px;height:15px;border-radius:5px;border:1.7px solid currentColor;opacity:.85}
+.sb-item.rnd .sb-ic{border-radius:50%}
+.sb-foot{margin-top:auto;padding:14px 10px 2px;font:500 11px/1.5 Manrope;color:rgba(16,38,74,.4)}
 @media(min-width:1024px){
-  body.plan-desk #app{max-width:1240px;background:transparent;box-shadow:none}
+  .desktop-only{display:block}
+  body{padding-left:252px;background:#E9EFF8}
+  .sbar{display:none}
+  #app{max-width:680px;border-radius:24px;margin:22px auto 40px;min-height:calc(100vh - 62px)}
+  .screen .hero{margin-top:0!important}
+  .tabbar,.tabspace{display:none!important}
+  #sidebar{display:flex;flex-direction:column;position:fixed;left:0;top:0;width:252px;height:100vh;box-sizing:border-box;padding:22px 16px;background:#fff;border-right:1px solid var(--bd);z-index:50}
+  /* plan screen keeps its wide desktop mirror */
+  body.plan-desk #app{max-width:1180px;border-radius:0;margin:0 auto;background:transparent;box-shadow:none}
   body.plan-desk #screen-plan{display:none!important}
   body.plan-desk #screen-plan-d{display:flex!important}
-  .desktop-only{display:block}
 }
 #screen-plan-d{display:none}
 </style>
 </head>
 <body>
+<aside id="sidebar" class="desktop-only"></aside>
 <div id="app"></div>
 <div class="sheet-wrap" id="sheetWrap"><div class="scrim" data-close-sheet></div><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
@@ -1889,15 +1907,30 @@ document.head.appendChild(st);
 /* ---- resize -> desktop plan switch ---- */
 let rz; window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{ if(CURRENT==='plan'){ render(); const el=document.body.classList.contains('plan-desk')?null:$('screen-plan'); if(el)el.classList.add('active'); updateDesktop(); }},150);});
 
+// desktop sidebar nav (reuses the same data-tab routing as the mobile tab bar)
+function buildSidebar(){
+  const sb=$('sidebar'); if(!sb) return;
+  const items=[['find','Новый подбор',0],['plans','Медиапланы',0],['fav','Избранное',1],['profile','Профиль',1]];
+  sb.innerHTML='<div class="sb-head"><div class="blogo">'+logoMark(26)+'</div><span>BRADAR</span></div>'+
+    '<nav class="sb-nav">'+items.map(t=>`<div class="sb-item ${t[2]?'rnd':''}" data-tab="${t[0]}"><span class="sb-ic"></span>${t[1]}</div>`).join('')+'</nav>'+
+    '<div class="sb-foot">Прогнозы не гарантируют результат кампании.</div>';
+}
+const SB_MAP={onboard:'find',confirm:'find',brief:'find',analysis:'find',plan:'find',channel:'find',recalc:'find',export:'find',saved:'plans',favorites:'fav',profile:'profile'};
+function updateSidebar(){
+  const active=SB_MAP[CURRENT]||'';
+  document.querySelectorAll('#sidebar .sb-item').forEach(el=>el.classList.toggle('on', el.getAttribute('data-tab')===active));
+}
 function postRender(){
   // keep desktop mirror active flag consistent
   if(CURRENT==='plan'){ const d=$('screen-plan-d'); if(d) d.classList.add('active'); }
+  updateSidebar();
 }
 
 /* ---- boot ---- */
 try{ var fav=document.createElement('link'); fav.rel='icon'; fav.href=LOGO_ICON; document.head.appendChild(fav); }catch(e){}
 // Start blank by default — a new подбор must NOT default to the last project. The saved
 // profile stays available on the Профиль screen (tap «Сохранить профиль» to reuse it).
+buildSidebar();
 go('onboard',false);
 </script>
 <script src="/bradar-api.js"></script>
