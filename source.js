@@ -165,6 +165,22 @@ async function fetchCandidates(input = {}) {
         risks: [], why: [], verdict: 'Подходит', verdictSub: '',
         vColor: 'var(--teal)', vBg: '#F4FAF9', av: avOf(title),
         placement: { price: 0, clicks: '' },
+        real: true,
+        metrics: (realReach || err || postsOf(st)) ? {
+          reach: realReach,
+          reach24: num(st.avg_post_views && st.avg_post_views.avg_post_views_24h),
+          reach48: num(st.avg_post_views && st.avg_post_views.avg_post_views_48h),
+          reach72: num(st.avg_post_views && st.avg_post_views.avg_post_views_72h),
+          err: err, err24: num(st.err24_percent),
+          posts30: postsOf(st), posts7: num(st.messages_count && st.messages_count.last_7_days),
+          growth30: num(st.members_change && st.members_change.last_30_days),
+          growth7: num(st.members_change && st.members_change.last_7_days),
+          female: num(st.gender && st.gender.female_percent), male: num(st.gender && st.gender.male_percent),
+          premium: num(st.premium_percent), adsGrade: st.ads_index_grade || '',
+          reactions: num(st.engagement && st.engagement.reactions_avg),
+          comments: num(st.engagement && st.engagement.comments_avg),
+          forwards: num(st.engagement && st.engagement.forwards_avg),
+        } : null,
       };
     }).filter(c => c.subs > 0);
     return out.length ? out : null;

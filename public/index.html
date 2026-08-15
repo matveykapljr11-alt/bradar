@@ -1022,7 +1022,65 @@ function chHead(c){
     <span class="hbtn" data-open-link="${c.id}" style="background:var(--chip2);border:none;color:rgba(16,38,74,.6);align-self:flex-start">Открыть ↗</span></div>`;
 }
 
+// real-data channel detail (Telemetr) — only real numbers, no fabricated blocks
+function realChannelDetail(c){
+  const m=c.metrics||{};
+  const growth=m.growth30?((m.growth30>0?'+':'')+fmt(m.growth30)):'—';
+  const grades={A:'высокая',B:'хорошая',C:'средняя',D:'ниже средней',E:'низкая',F:'низкая'};
+  const gk=(m.adsGrade||'').charAt(0).toUpperCase();
+  return statusBar()+
+  `<div class="hero a" style="margin-top:-40px;padding-top:44px;padding-bottom:58px">
+    <div class="hrow"><button class="back" data-act="back">← Медиаплан</button><span data-act="fav" style="font:700 12px Manrope;color:#fff">${c._fav?'★ В избранном':'В избранное'}</span></div>
+    <div style="display:flex;align-items:center;gap:13px">
+      <div class="av" style="width:56px;height:56px;background:${c.av.g};color:${c.av.c};font-size:20px;border:2px solid rgba(255,255,255,.5)">${c.av.l}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px"><span style="font:800 19px Manrope;color:#fff;letter-spacing:-.3px">${c.name}</span>${c.verified?'<span class="veri" style="width:15px;height:15px;background:#fff;color:var(--blue);font-size:9px">✓</span>':''}</div>
+        <div class="tnum" style="font:600 12px Manrope;color:rgba(255,255,255,.7);margin-top:3px">${fmt(c.subs)} подписчиков</div>
+      </div>
+      <div style="text-align:right;flex:none"><div class="tnum" style="font:800 24px Manrope;color:#7FE3F0;line-height:1">${c.match}%</div><div style="font:600 9.5px Manrope;color:rgba(255,255,255,.65);margin-top:4px">соответствие</div></div>
+    </div>
+  </div>
+  <div class="body" style="margin-top:-42px;position:relative;z-index:2;display:flex;flex-direction:column;gap:14px">
+    <div class="card lg">
+      <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:11px">Реальные показатели · Telemetr</div>
+      <div class="mgrid">
+        <div class="cell"><div class="v tnum">${fmt(m.reach||c.reach)}</div><div class="k">средний охват поста</div></div>
+        <div class="cell"><div class="v tnum">${c.eng||(m.err?String(Math.round(m.err*10)/10).replace('.',',')+'%':'—')}</div><div class="k">вовлечённость (ER)</div></div>
+        <div class="cell"><div class="v tnum">${m.posts30||'—'}</div><div class="k">постов за 30 дней</div></div>
+        <div class="cell"><div class="v tnum">${m.reactions||'—'}</div><div class="k">реакций на пост</div></div>
+      </div>
+      ${(m.reach24||m.reach48)?`<div class="mgrid" style="margin-top:8px">
+        <div class="cell"><div class="v tnum">${fmt(m.reach24)}</div><div class="k">охват за 24 ч</div></div>
+        <div class="cell"><div class="v tnum">${fmt(m.reach72||m.reach48)}</div><div class="k">охват за ${m.reach72?'72':'48'} ч</div></div>
+      </div>`:''}
+    </div>
+    <div class="card lg">
+      <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:12px">Аудитория и динамика</div>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        ${(m.female||m.male)?dynRow('Женщины / Мужчины',(m.female||0)+'% / '+(m.male||0)+'%','var(--navy)'):''}
+        ${m.premium?dynRow('Premium-аудитория',m.premium+'%','var(--navy)'):''}
+        ${dynRow('Прирост за 30 дней',growth,(m.growth30>=0)?'var(--teal)':'var(--gold)')}
+        ${dynRow('Тематика',c.cat,'var(--navy)')}
+        ${dynRow('География · язык','Россия · русский','var(--navy)')}
+      </div>
+    </div>
+    ${m.adsGrade?`<div class="card lg">
+      <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:5px">Рекламная привлекательность</div>
+      <p class="hint" style="margin-bottom:8px">Индекс Telemetr (A — лучшая, F — худшая)</p>
+      <div style="display:flex;align-items:center;gap:10px"><span style="font:800 22px Manrope;color:var(--blue)">${esc(m.adsGrade)}</span><span style="font:600 12.5px Manrope;color:var(--ink)">${grades[gk]||'оценка канала'}</span></div>
+    </div>`:''}
+    <div class="card" style="padding:13px 15px;background:var(--soft)">
+      <p style="margin:0;font:500 11.5px/1.5 Manrope;color:rgba(16,38,74,.55)">Данные Telemetr по реальному каналу. Прямая ссылка и рекламные контакты открываются на платном тарифе аналитики — сейчас «Открыть» копирует название для поиска в Telegram.</p>
+    </div>
+    <div style="display:flex;gap:7px;margin-top:2px">
+      <span class="pbtn dark" data-keep="${c.id}">Оставить в плане</span>
+      <span class="pbtn" data-open-link="${c.id}">Открыть ↗</span>
+      ${c.replaceable?`<span class="pbtn accent" data-replace="${c.id}">Заменить</span>`:''}
+    </div>
+  </div>`;
+}
 function channelDetailFull(c){
+  if(c.metrics) return realChannelDetail(c);
   const safety=[['Политический контент','не найден',true],['Токсичная лексика','не найдена',true],['Азартные игры','не найдены',true],['Финансовые продукты','не найдены',true],['Контент 18+','не найден',true],['Количество рекламы',c.adShare+' — в норме',false]];
   const bars=[['Совпадение тематики',96,'#0E9AA7'],['Совпадение аудитории',93,'#0E9AA7'],['Соответствие стилю бренда',90,'#0E9AA7'],['Рекламная эффективность',88,'#1668E3'],['Безопасность для бренда',98,'#0E9AA7'],['Адекватность стоимости',84,'#1668E3']];
   const chart=[38,44,41,52,57,54,63,69,74,80,86,92];
