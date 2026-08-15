@@ -40,7 +40,7 @@ img{max-width:100%}
 }
 .screen{display:none;flex-direction:column;min-height:100vh;animation:fade .28s ease}
 .screen.active{display:flex}
-@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}  /* opacity-only: no transform, so the fixed tabbar stays viewport-anchored */
 
 /* status bar (only shown outside Telegram) */
 .sbar{display:flex;align-items:center;justify-content:space-between;
@@ -142,9 +142,11 @@ body.tg .sbar{display:none}
 .av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;flex:none;color:#fff}
 .veri{border-radius:50%;background:var(--blue);color:#fff;display:inline-flex;align-items:center;justify-content:center}
 
-/* bottom nav */
+/* bottom nav — docked: always visible, content scrolls underneath */
 .tabbar{display:flex;border-top:1px solid var(--bd);background:#fff;padding:9px 8px calc(14px + var(--sab));
-  position:sticky;bottom:0;z-index:5}
+  position:fixed;left:50%;transform:translateX(-50%);width:100%;max-width:440px;box-sizing:border-box;
+  bottom:0;z-index:40}
+.tabspace{flex:0 0 auto;height:calc(60px + var(--sab))}  /* reserves scroll room under the fixed bar */
 .tab{flex:1;text-align:center}
 .tab .ic{height:20px;display:flex;align-items:center;justify-content:center}
 .tab .ic i{width:16px;height:16px;display:inline-block;border-radius:5px;border:1.6px solid #9DB4D6}
@@ -1513,7 +1515,7 @@ function dCell(v,k,color){return `<div style="background:#fff;padding:14px 16px"
 /* ---- tab bar ---- */
 function tabbar(active){
   const tabs=[['find','Новый подбор',false],['plans','Медиапланы',false],['fav','Избранное',true],['profile','Профиль',true]];
-  return `<div class="tabbar">${tabs.map(t=>`<div class="tab ${active===t[0]?'on':''}" data-tab="${t[0]}"><div class="ic"><i class="${t[2]?'rnd':''}"></i></div><div class="tl">${t[1]}</div></div>`).join('')}</div>`;
+  return `<div class="tabspace"></div><div class="tabbar">${tabs.map(t=>`<div class="tab ${active===t[0]?'on':''}" data-tab="${t[0]}"><div class="ic"><i class="${t[2]?'rnd':''}"></i></div><div class="tl">${t[1]}</div></div>`).join('')}</div>`;
 }
 
 /* =============================================================
