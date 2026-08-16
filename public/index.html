@@ -869,6 +869,40 @@ function aStepRow(st,i,activeIdx){
 /* =============================================================
  *  SCREEN 1e — media plan (mobile)
  * ============================================================= */
+// funnel conversion (click → result) by campaign goal — stated assumptions, ranges
+const GOAL_CR={ 'Продажи':[0.01,0.03,'покупок'], 'Заявки':[0.05,0.12,'заявок'], 'Установки':[0.25,0.45,'установок'], 'Подписчики':[0.08,0.20,'подписчиков'] };
+// professional media-plan forecast: net (unique) reach, frequency, CPC, funnel result
+function kpiForecast(t){
+  const gross=t.views||0;
+  const overlap=S.plan.overlap||10;
+  const dedup=Math.max(0.62,Math.min(0.88, 0.86-(overlap/100)*0.8));  // unique-reach discount from audience overlap
+  const net=Math.round(gross*dedup);
+  const freq=gross/(net||1);
+  const clkLo=Math.round(gross*0.0078), clkHi=Math.round(gross*0.0104);  // CTR band
+  const cpcLo=t.budget/(clkHi||1), cpcHi=t.budget/(clkLo||1);
+  const cr=GOAL_CR[S.brief.goal||''];
+  const result=cr?{lo:Math.round(clkLo*cr[0]),hi:Math.round(clkHi*cr[1]),label:cr[2],crLo:Math.round(cr[0]*100),crHi:Math.round(cr[1]*100)}:null;
+  return {gross,net,freq,clkLo,clkHi,cpcLo,cpcHi,result};
+}
+function kpiCard(t){
+  const f=kpiForecast(t);
+  const freqStr=String(Math.round(f.freq*10)/10).replace('.',',');
+  const cpc=fmt(Math.round(f.cpcLo))+'–'+fmt(Math.round(f.cpcHi))+' ₽';
+  return `<div class="card lg" style="margin-top:16px">
+    <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:12px">Прогноз результата</div>
+    <div class="mgrid">
+      <div class="cell"><div class="v tnum" style="font-size:17px">${fmt(f.net)}</div><div class="k">чистый охват</div><div class="s">уникальные люди</div></div>
+      <div class="cell"><div class="v tnum" style="font-size:17px">${freqStr}×</div><div class="k">частота контакта</div><div class="s">сколько раз увидят</div></div>
+      <div class="cell"><div class="v tnum" style="font-size:17px">${fmt(f.clkLo)}–${fmt(f.clkHi)}</div><div class="k">переходов</div><div class="s">CTR 0,8–1,0%</div></div>
+      <div class="cell"><div class="v tnum" style="font-size:17px">${cpc}</div><div class="k">цена перехода</div><div class="s">CPC · бюджет ÷ переходы</div></div>
+    </div>
+    ${f.result?`<div style="margin-top:12px;padding:12px 14px;background:var(--soft);border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div><div style="font:700 12.5px Manrope;color:var(--navy)">Ожидаемо ${f.result.label}</div><div class="s" style="margin-top:2px">при конверсии перехода ${f.result.crLo}–${f.result.crHi}%</div></div>
+      <div class="tnum" style="font:800 20px Manrope;color:var(--blue);white-space:nowrap">${fmt(f.result.lo)}–${fmt(f.result.hi)}</div>
+    </div>`:''}
+    <p class="hint" style="margin-top:10px">Чистый охват — с поправкой на пересечение аудиторий. Конверсия в результат зависит от оффера, лендинга и креатива — уточняйте на тесте.</p>
+  </div>`;
+}
 SCREENS.plan=function(){
   const t=planTotals(), g=groupTotals(), p=S.plan;
   const sorted=S.channels.slice().sort((a,b)=> S.sort==='cpm'? a.cpm-b.cpm : b.match-a.match);
@@ -903,6 +937,8 @@ SCREENS.plan=function(){
       </div>
       <p style="position:relative;margin-top:12px;font:500 10.5px/1.45 Manrope;color:rgba(255,255,255,.7)">Прогноз основан на предыдущих показателях каналов и не гарантирует результат кампании.</p>
     </div>
+
+    ${kpiCard(t)}
 
     ${budgetCard(g)}
 
@@ -1552,6 +1588,7 @@ SCREENS.planDesktop=function(){
               <p style="margin:0 0 12px;font:500 12.5px/1.6 Manrope;color:var(--ink)">${strategyText()}</p>
               <span class="chip" data-act="why" style="border-color:#C7DEFB;color:var(--blue);font-weight:700">Почему такая стратегия? →</span>
             </div>
+            ${kpiCard(t)}
             <div style="background:#fff;border:1px solid var(--bd);border-radius:16px;padding:18px">
               <div style="font:700 12.5px Manrope;color:var(--navy);margin-bottom:13px">Как распределён бюджет</div>
               <div class="stack" style="margin-bottom:14px"><span style="width:${g.core.pct}%;background:#1668E3"></span><span style="width:${g.adj.pct}%;background:#5FA0F0"></span><span style="width:${g.exp.pct}%;background:#0E9AA7"></span></div>
