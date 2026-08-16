@@ -1058,6 +1058,53 @@ function chHead(c){
 }
 
 // real-data channel detail (Telemetr) — only real numbers, no fabricated blocks
+// Agency-style audience vetting: a 0–100 quality score + plain-language signals,
+// computed ONLY from real Telemetr metrics (reach/subs, ER, growth, premium, ads
+// index). This is the due-diligence a media-buyer does to filter out inflated /
+// dead / bot-padded channels before recommending a placement.
+function auditQuality(c){
+  const m=c.metrics||{}; const subs=c.subs||0; const reach=m.reach||c.reach||0;
+  const sig=[]; let score=70;
+  const er=v=>String(Math.round(v*10)/10).replace('.',',');
+  if(subs>0 && reach>0){
+    const r=reach/subs, rp=Math.round(r*100);
+    if(r<0.08){ score-=26; sig.push([0,`Низкий охват — посты видят лишь ${rp}% подписчиков. Возможна накрутка или «мёртвая» аудитория.`]); }
+    else if(r<0.15){ score-=6; sig.push([0,`Охват ниже нормы — ${rp}% подписчиков, часть аудитории пассивна.`]); }
+    else if(r<=0.6){ score+=15; sig.push([1,`Живая аудитория — охват ${rp}% от подписчиков (в норме).`]); }
+    else { score+=4; sig.push([1,`Высокий охват — ${rp}% подписчиков видят посты.`]); }
+  }
+  if(m.err>0){
+    if(m.err>=4){ score+=8; sig.push([1,`Высокая вовлечённость — ER ${er(m.err)}%.`]); }
+    else if(m.err<1.5){ score-=10; sig.push([0,`Низкая вовлечённость — ER ${er(m.err)}%, аудитория слабо реагирует.`]); }
+  }
+  if(subs>0 && typeof m.growth30==='number' && m.growth30!==0){
+    const g=m.growth30/subs, gp=Math.round(Math.abs(g)*100);
+    if(g>0.25){ score-=16; sig.push([0,`Резкий прирост +${gp}% за месяц — проверьте на накрутку подписчиков.`]); }
+    else if(g<-0.03){ score-=8; sig.push([0,`Аудитория убывает — −${gp}% за месяц.`]); }
+    else if(g>0){ score+=6; sig.push([1,`Органический прирост +${gp}% за месяц.`]); }
+  }
+  if(m.premium>=3){ score+=5; sig.push([1,`Платёжеспособная аудитория — ${m.premium}% Premium.`]); }
+  const gk=(m.adsGrade||'').charAt(0).toUpperCase();
+  if(gk==='A'||gk==='B'){ score+=6; sig.push([1,`Хорошая рекламная репутация (индекс Telemetr ${m.adsGrade}).`]); }
+  else if(gk==='D'||gk==='E'||gk==='F'){ score-=6; sig.push([0,`Слабый рекламный индекс Telemetr (${m.adsGrade}).`]); }
+  if(!sig.length) sig.push([1,'Метрики в пределах нормы для тематики.']);
+  score=Math.max(20,Math.min(98,Math.round(score)));
+  return {score, label: score>=80?'Высокое':score>=65?'Хорошее':score>=50?'Среднее':'Низкое — осторожно',
+    color: score>=65?'var(--teal)':score>=50?'var(--gold)':'#D9534F', sig};
+}
+function auditCard(c){
+  const q=auditQuality(c);
+  return `<div class="card lg">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+      <div style="font:700 13px Manrope;color:var(--navy)">Проверка аудитории</div>
+      <div style="display:flex;align-items:baseline;gap:6px"><span class="tnum" style="font:800 20px Manrope;color:${q.color}">${q.score}</span><span style="font:600 11px Manrope;color:${q.color}">/ 100 · ${q.label}</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${q.sig.map(s=>`<div style="display:flex;gap:8px;align-items:flex-start"><span style="flex:none;width:16px;height:16px;border-radius:5px;background:${s[0]?'#E6F7F3':'#FFF1E0'};color:${s[0]?'var(--teal)':'var(--gold)'};font:800 10px Manrope;display:flex;align-items:center;justify-content:center">${s[0]?'✓':'!'}</span><span style="font:500 12px/1.5 Manrope;color:var(--ink)">${s[1]}</span></div>`).join('')}
+    </div>
+    <p class="hint" style="margin-top:10px">Оценка по реальным метрикам Telemetr: охват к подписчикам, вовлечённость, динамика прироста, Premium. Помогает отсеять накрученные каналы.</p>
+  </div>`;
+}
 function realChannelDetail(c){
   const m=c.metrics||{};
   const growth=m.growth30?((m.growth30>0?'+':'')+fmt(m.growth30)):'—';
@@ -1089,6 +1136,7 @@ function realChannelDetail(c){
         <div class="cell"><div class="v tnum">${fmt(m.reach72||m.reach48)}</div><div class="k">охват за ${m.reach72?'72':'48'} ч</div></div>
       </div>`:''}
     </div>
+    ${auditCard(c)}
     <div class="card lg">
       <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:12px">Аудитория и динамика</div>
       <div style="display:flex;flex-direction:column;gap:9px">
