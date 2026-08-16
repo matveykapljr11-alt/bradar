@@ -1950,40 +1950,93 @@ function download(filename,mime,content){
   }catch(e){ return false; }
 }
 function genCSV(){
-  const t=planTotals(), sep=';';
+  const t=planTotals(), f=kpiForecast(t), sep=';';
   const q=x=>{const s=String(x==null?'':x);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const GNAME={core:'Ядро',adj:'Смежные',exp:'Эксперимент'};
   const lines=[
     ['Медиаплан для '+S.brand.name],
-    ['Бюджет',t.budget],['Каналов',t.count],['Прогноз просмотров',Math.round(t.views)],
-    ['Средний CPM',Math.round(t.avgCpm)],['Пересечение аудиторий, %',S.plan.overlap],[],
-    ['#','Канал','Ссылка','Тематика','Подписчики','Соответствие %','CPM ₽','Цена ₽','Прогноз просмотров'],
+    ['Бюджет',t.budget],['Каналов',t.count],
+    ['Прогноз просмотров',Math.round(t.views)],['Чистый охват',f.net],['Частота',Math.round(f.freq*10)/10],
+    ['Переходы','от '+f.clkLo+' до '+f.clkHi],['CPC ₽','от '+Math.round(f.cpcLo)+' до '+Math.round(f.cpcHi)],
+    ['Средний CPM',Math.round(t.avgCpm)],
+    (f.result?['Ожидаемый результат',f.result.label+': '+f.result.lo+'–'+f.result.hi+' (CR '+f.result.crLo+'–'+f.result.crHi+'%)']:['','']),[],
+    ['#','Канал','Ссылка','Тематика','Группа','Подписчики','Соответствие %','Качество 0-100','CPM ₽','Цена ₽','Прогноз просмотров'],
   ].map(r=>r.map(q).join(sep));
-  planRows().forEach(r=>lines.push([r.n,r.name,r.link,r.cat,r.subs,r.match,r.cpm,r.price,r.views].map(q).join(sep)));
+  S.channels.slice().sort((a,b)=>b.match-a.match).forEach((c,i)=>{
+    const qs=auditQuality(c).score;
+    lines.push([i+1,c.name,(chUrl(c)||'').replace('https://',''),c.cat,GNAME[c.group]||'',c.subs,c.match,qs,c.cpm,c.price,Math.round(c.price/c.cpm*1000)].map(q).join(sep));
+  });
   return lines.join('\n');
 }
 function genPrintHTML(){
-  const t=planTotals(), g=groupTotals();
-  const rows=planRows().map(r=>`<tr><td>${r.n}</td><td><b>${esc(r.name)}</b><br><span class=m>${esc(r.link)}</span></td><td>${esc(r.cat)}</td><td>${fmt(r.subs)}</td><td>${r.match}%</td><td>${fmt(r.cpm)} ₽</td><td>${fmt(r.price)} ₽</td><td>${fmt(r.views)}</td></tr>`).join('');
+  const t=planTotals(), g=groupTotals(), f=kpiForecast(t);
+  const freqStr=String(Math.round(f.freq*10)/10).replace('.',',');
+  const cpc=fmt(Math.round(f.cpcLo))+'–'+fmt(Math.round(f.cpcHi))+' ₽';
+  const chs=S.channels.slice().sort((a,b)=>b.match-a.match);
+  const rows=chs.map((c,i)=>{const q=auditQuality(c);const qc=q.score>=65?'#0E9AA7':q.score>=50?'#C7902A':'#C0392B';
+    return `<tr><td>${i+1}</td><td><b>${esc(c.name)}</b><br><span class=m>${esc(c.cat)} · ${esc((chUrl(c)||'').replace('https://',''))}</span></td><td>${fmt(c.subs)}</td><td>${fmt(c.reach||Math.round(c.price/c.cpm*1000))}</td><td>${c.match}%</td><td style="color:${qc};font-weight:700">${q.score}</td><td>${fmt(c.cpm)} ₽</td><td><b>${fmt(c.price)} ₽</b></td></tr>`;}).join('');
+  const rationale=chs.map(c=>{const b={f:FORMAT_BY_TOPIC[c.topic]||'Нативная интеграция',a:ANGLE_BY_VERTICAL[S.vertical]||ANGLE_BY_VERTICAL.generic};
+    const why=(c.why||[]).slice(0,3).map(w=>`<li>${esc(w)}</li>`).join('');
+    const risks=(c.risks||[]).length?`<div class=risk>⚠ ${(c.risks||[]).map(esc).join(' · ')}</div>`:'';
+    return `<div class=ch><div class=chh><b>${esc(c.name)}</b><span class=chm>${c.match}% соответствие · ${fmt(c.price)} ₽</span></div>${why?`<ul>${why}</ul>`:''}${risks}<div class=fmtline><b>Формат:</b> ${esc(b.f)} · <b>Посыл:</b> ${esc(b.a)}</div></div>`;}).join('');
+  const byG={core:[],adj:[],exp:[]}; chs.forEach(c=>{(byG[c.group]||byG.adj).push(c);});
+  const weeks=[['Неделя 1 — старт с ядра',byG.core.slice(0,3),'Прайм-каналы ядра. Снимаем первые данные по CPC и конверсии.'],['Неделя 2 — расширение',byG.adj.slice(0,3),'Смежные интересы — масштабируем на сработавшем оффере.'],['Неделя 3 — тест и повтор',byG.exp.slice(0,3),'Эксперименты + повтор лучшего канала недели 1.']].filter(w=>w[1].length);
+  const flights=weeks.map((w,i)=>`<div class=wk><div class=wkn>${i+1}</div><div><b>${w[0]}</b><div class=wkc>${w[1].map(c=>esc(c.name)).join(' · ')}</div><div class=m>${w[2]}</div></div></div>`).join('');
+  const utm=`?utm_source=&lt;канал&gt;&amp;utm_medium=telegram&amp;utm_campaign=${slug(S.brand.name)}`;
+  const resultKpi=f.result?`<div class=kpi><b>${fmt(f.result.lo)}–${fmt(f.result.hi)}</b><span>${esc(f.result.label)} · CR ${f.result.crLo}–${f.result.crHi}%</span></div>`:'';
   return `<!DOCTYPE html><html lang=ru><head><meta charset=utf-8><title>Медиаплан ${esc(S.brand.name)}</title>
-  <style>*{box-sizing:border-box}body{font-family:Manrope,Arial,sans-serif;color:#0E2244;margin:0;padding:32px;max-width:900px}
-  h1{font-size:24px;margin:0 0 4px}.sub{color:#5A6B90;margin:0 0 20px}
-  .kpis{display:flex;gap:16px;margin:0 0 22px;flex-wrap:wrap}
-  .kpi{flex:1;min-width:120px;background:#F0F7FF;border:1px solid #D7E7FC;border-radius:10px;padding:12px 14px}
-  .kpi b{display:block;font-size:20px}.kpi span{color:#5A6B90;font-size:12px}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th{text-align:left;background:#0E2244;color:#fff;padding:8px 10px;font-size:11px}
-  td{padding:9px 10px;border-bottom:1px solid #E6EEFA;vertical-align:top}.m{color:#8DA0C4;font-size:10px}
-  .note{margin-top:18px;color:#8DA0C4;font-size:11px}@media print{body{padding:0}}</style></head>
-  <body><img src="${LOGO_FULL}" alt="BRADAR" style="height:30px;margin:0 0 16px;display:block"><h1>Медиаплан для ${esc(S.brand.name)}</h1><p class=sub>by Kapin Group · ${fmtDate(Date.now())}</p>
+  <style>*{box-sizing:border-box}body{font-family:Manrope,Arial,sans-serif;color:#0E2244;margin:0;padding:34px;max-width:940px}
+  h1{font-size:25px;margin:0 0 4px}.sub{color:#5A6B90;margin:0 0 22px}
+  h2{font-size:15px;margin:26px 0 12px;padding-bottom:6px;border-bottom:2px solid #E6EEFA;letter-spacing:.2px}
+  .kpis{display:flex;gap:12px;margin:0 0 8px;flex-wrap:wrap}
+  .kpi{flex:1;min-width:110px;background:#F0F7FF;border:1px solid #D7E7FC;border-radius:10px;padding:11px 13px}
+  .kpi b{display:block;font-size:18px}.kpi span{color:#5A6B90;font-size:11px}
+  .strat{background:#F7FAFF;border:1px solid #E6EEFA;border-radius:12px;padding:14px 16px;font-size:12.5px;line-height:1.6}
+  .split{display:flex;gap:10px;margin-top:12px}.split div{flex:1;font-size:11.5px}.split b{font-size:14px;display:block}
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  th{text-align:left;background:#0E2244;color:#fff;padding:8px 9px;font-size:10.5px}
+  td{padding:8px 9px;border-bottom:1px solid #E6EEFA;vertical-align:top}.m{color:#8DA0C4;font-size:10px}
+  .ch{border:1px solid #E6EEFA;border-radius:10px;padding:12px 14px;margin-bottom:9px}
+  .chh{display:flex;justify-content:space-between;align-items:baseline}.chm{color:#5A6B90;font-size:11px}
+  .ch ul{margin:8px 0 6px 16px;padding:0;font-size:11.5px;line-height:1.5}.ch li{margin-bottom:2px}
+  .risk{color:#A6741C;background:#FFF8EC;border-radius:7px;padding:6px 9px;font-size:11px;margin:4px 0}
+  .fmtline{font-size:11px;color:#3A4A66;margin-top:6px}
+  .wk{display:flex;gap:11px;margin-bottom:11px}.wkn{flex:none;width:24px;height:24px;border-radius:7px;background:#EAF2FF;color:#1668E3;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}.wkc{font-size:12px;margin:3px 0}
+  .utm{font-family:monospace;font-size:11px;background:#F7FAFF;border:1px solid #E6EEFA;border-radius:8px;padding:9px 11px;word-break:break-all}
+  .note{margin-top:20px;color:#8DA0C4;font-size:10.5px;line-height:1.5;border-top:1px solid #E6EEFA;padding-top:12px}
+  @media print{body{padding:0}h2,.ch,.wk{break-inside:avoid}}</style></head>
+  <body><img src="${LOGO_FULL}" alt="BRADAR" style="height:30px;margin:0 0 16px;display:block"><h1>Медиаплан для ${esc(S.brand.name)}</h1><p class=sub>by Kapin Group · ${fmtDate(Date.now())} · ${t.count} каналов · бюджет ${fmt(t.budget)} ₽</p>
+
+  <h2>Сводка и прогноз</h2>
   <div class=kpis>
     <div class=kpi><b>${fmt(t.budget)} ₽</b><span>бюджет</span></div>
-    <div class=kpi><b>${t.count}</b><span>каналов</span></div>
-    <div class=kpi><b>≈${fmt(Math.round(t.views/1000)*1000)}</b><span>просмотров</span></div>
+    <div class=kpi><b>${fmt(f.net)}</b><span>чистый охват (уник.)</span></div>
+    <div class=kpi><b>${freqStr}×</b><span>частота контакта</span></div>
+    <div class=kpi><b>${fmt(f.clkLo)}–${fmt(f.clkHi)}</b><span>переходов</span></div>
+    <div class=kpi><b>${cpc}</b><span>CPC</span></div>
     <div class=kpi><b>${fmt(t.avgCpm)} ₽</b><span>средний CPM</span></div>
-    <div class=kpi><b>${S.plan.confidence}</b><span>уверенность</span></div>
+    ${resultKpi}
   </div>
-  <table><thead><tr><th>#</th><th>Канал</th><th>Тематика</th><th>Подписчики</th><th>Соотв.</th><th>CPM</th><th>Цена</th><th>Прогноз</th></tr></thead><tbody>${rows}</tbody></table>
-  <p class=note>Распределение бюджета: основное ядро ${g.core.pct}%, смежные ${g.adj.pct}%, эксперименты ${g.exp.pct}%. Прогноз основан на предыдущих показателях каналов и не гарантирует результат кампании.</p>
+
+  <h2>Стратегия и распределение бюджета</h2>
+  <div class=strat>${esc(strategyText())}
+    <div class=split><div><b>${g.core.pct}%</b>Основное ядро · ${fmt(g.core.sum)} ₽</div><div><b>${g.adj.pct}%</b>Смежные · ${fmt(g.adj.sum)} ₽</div><div><b>${g.exp.pct}%</b>Эксперименты · ${fmt(g.exp.sum)} ₽</div></div>
+  </div>
+
+  <h2>Каналы</h2>
+  <table><thead><tr><th>#</th><th>Канал</th><th>Подписч.</th><th>Охват</th><th>Соотв.</th><th>Качество</th><th>CPM</th><th>Цена</th></tr></thead><tbody>${rows}</tbody></table>
+
+  <h2>Обоснование по каналам</h2>
+  ${rationale}
+
+  <h2>План размещения</h2>
+  ${flights}
+
+  <h2>Трекинг</h2>
+  <div class=utm>${utm}</div>
+  <p class=m style="margin-top:8px">Свой utm_source и отдельная ссылка/промокод на каждый канал — для точного замера CPC и стоимости заявки по каждому размещению.</p>
+
+  <p class=note><b>Методология.</b> Каналы отобраны по соответствию бренду, реальным метрикам (охват, вовлечённость, динамика) и проверке аудитории на накрутку. Прогноз построен по средним показателям каналов и типовой воронке — он не гарантирует результат кампании. Оценка «Качество» (0–100) отражает живость и надёжность аудитории по данным Telemetr. Подготовлено в BRADAR.</p>
   </body></html>`;
 }
 function shareText(){
