@@ -903,6 +903,38 @@ function kpiCard(t){
     <p class="hint" style="margin-top:10px">Чистый охват — с поправкой на пересечение аудиторий. Конверсия в результат зависит от оффера, лендинга и креатива — уточняйте на тесте.</p>
   </div>`;
 }
+// plan-level placement schedule (flights) + tracking template
+function placementCard(){
+  const chs=S.channels||[];
+  if(!chs.length) return '';
+  const byG={core:[],adj:[],exp:[]};
+  chs.forEach(c=>{ (byG[c.group]||byG.adj).push(c); });
+  const weeks=[
+    ['Неделя 1 — старт с ядра', byG.core.slice(0,3), 'Прайм-каналы с высшим соответствием. Снимаем первые данные по CPC и конверсии.'],
+    ['Неделя 2 — расширение', byG.adj.slice(0,3), 'Смежные интересы — масштабируем охват на сработавшем оффере.'],
+    ['Неделя 3 — тест и повтор', byG.exp.slice(0,3), 'Экспериментальные сегменты + повтор лучшего канала недели 1.'],
+  ].filter(w=>w[1].length);
+  if(!weeks.length) return '';
+  const utm='?utm_source=&lt;канал&gt;&amp;utm_medium=telegram&amp;utm_campaign='+(slug(S.brand.name||'brand')||'brand');
+  return `<div class="card lg" style="margin-top:16px">
+    <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:13px">План размещения</div>
+    <div style="display:flex;flex-direction:column;gap:13px">
+      ${weeks.map((w,i)=>`<div style="display:flex;gap:11px">
+        <div style="flex:none;width:26px;height:26px;border-radius:8px;background:var(--soft);color:var(--blue);font:800 12px Manrope;display:flex;align-items:center;justify-content:center">${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font:700 12.5px Manrope;color:var(--navy)">${w[0]}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin:6px 0">${w[1].map(c=>`<span style="padding:3px 8px;background:var(--chip);border-radius:7px;font:600 11px Manrope;color:var(--navy)">${esc(c.name)}</span>`).join('')}</div>
+          <div style="font:500 10.5px/1.45 Manrope;color:rgba(16,38,74,.5)">${w[2]}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div style="margin-top:14px;padding:12px 14px;background:var(--soft);border-radius:12px">
+      <div style="font:700 12px Manrope;color:var(--navy);margin-bottom:7px">Трекинг</div>
+      <div style="font:600 10.5px Manrope;color:var(--ink);word-break:break-all;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:8px 10px">${utm}</div>
+      <p style="margin:8px 0 0;font:500 10.5px/1.45 Manrope;color:rgba(16,38,74,.5)">Свой utm_source и отдельная ссылка/промокод на каждый канал — так вы точно измерите CPC и стоимость заявки по каждому размещению.</p>
+    </div>
+  </div>`;
+}
 SCREENS.plan=function(){
   const t=planTotals(), g=groupTotals(), p=S.plan;
   const sorted=S.channels.slice().sort((a,b)=> S.sort==='cpm'? a.cpm-b.cpm : b.match-a.match);
@@ -947,6 +979,8 @@ SCREENS.plan=function(){
       <p style="font:500 13px/1.6 Manrope;color:var(--ink);margin-bottom:13px;text-wrap:pretty">${strategyText()}</p>
       <span class="chip" data-act="why" style="border-color:#C7DEFB;color:var(--blue);font-weight:700">Почему такая стратегия? →</span>
     </div>
+
+    ${placementCard()}
 
     <div class="section-head"><span class="t">${t.count} каналов в плане</span><span class="a" data-act="sortToggle">${S.sort==='cpm'?'По CPM ↑':'По соответствию ↓'}</span></div>
 
@@ -1141,6 +1175,22 @@ function auditCard(c){
     <p class="hint" style="margin-top:10px">Оценка по реальным метрикам Telemetr: охват к подписчикам, вовлечённость, динамика прироста, Premium. Помогает отсеять накрученные каналы.</p>
   </div>`;
 }
+// per-channel creative brief: recommended format + brand-fit angle + delivery
+const FORMAT_BY_TOPIC={ skincare:'Нативный обзор-разбор средства', beauty:'Нативный обзор-разбор средства', fashion:'Образ дня / подборка с продуктом', edu:'Полезный пост + оффер на пробный шаг', app:'«Приложение недели» с CTA на установку', b2b:'Экспертный пост-кейс с оффером', crypto:'Аналитический пост с мягким CTA', wellness:'Личная рекомендация автора', conscious:'Личная рекомендация автора', lifestyle:'Личная рекомендация автора', news:'Короткий пост-анонс', finance:'Экспертный пост с оффером' };
+const ANGLE_BY_VERTICAL={ beauty:'состав и результат для чувствительной кожи, без громких обещаний', fashion:'база и сочетаемость — стиль без лишнего', edu:'конкретная польза и лёгкий первый шаг (пробный урок)', app:'одна боль → как приложение её решает, CTA на установку', b2b:'измеримый результат и кейс, оффер на демо/заявку', crypto:'реальная польза и прозрачность, без хайпа', generic:'понятная выгода и мягкий призыв к действию' };
+function creativeCard(c){
+  const lbl='font:600 10px Manrope;color:rgba(16,38,74,.45);margin-bottom:3px';
+  const f=FORMAT_BY_TOPIC[c.topic]||'Нативная интеграция в контент канала';
+  const angle=ANGLE_BY_VERTICAL[S.vertical]||ANGLE_BY_VERTICAL.generic;
+  return `<div class="card lg">
+    <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:11px">Креатив и размещение</div>
+    <div style="display:flex;flex-direction:column;gap:11px">
+      <div><div style="${lbl}">Формат</div><div style="font:600 12.5px Manrope;color:var(--navy)">${f}</div></div>
+      <div><div style="${lbl}">Посыл под бренд</div><div style="font:500 12.5px/1.5 Manrope;color:var(--ink)">${angle}</div></div>
+      <div><div style="${lbl}">Подача</div><div style="font:500 12.5px/1.5 Manrope;color:var(--ink)">Один нативный пост в вечерний прайм, 48–72 ч в ленте, честный тон канала. Уникальная ссылка/промокод для замера.</div></div>
+    </div>
+  </div>`;
+}
 function realChannelDetail(c){
   const m=c.metrics||{};
   const growth=m.growth30?((m.growth30>0?'+':'')+fmt(m.growth30)):'—';
@@ -1188,6 +1238,7 @@ function realChannelDetail(c){
       <p class="hint" style="margin-bottom:8px">Индекс Telemetr (A — лучшая, F — худшая)</p>
       <div style="display:flex;align-items:center;gap:10px"><span style="font:800 22px Manrope;color:var(--blue)">${esc(m.adsGrade)}</span><span style="font:600 12.5px Manrope;color:var(--ink)">${grades[gk]||'оценка канала'}</span></div>
     </div>`:''}
+    ${creativeCard(c)}
     <div class="card" style="padding:13px 15px;background:var(--soft)">
       <p style="margin:0;font:500 11.5px/1.5 Manrope;color:rgba(16,38,74,.55)">Данные Telemetr по реальному каналу. Прямая ссылка и рекламные контакты открываются на платном тарифе аналитики — сейчас «Открыть» копирует название для поиска в Telegram.</p>
     </div>
@@ -1589,6 +1640,7 @@ SCREENS.planDesktop=function(){
               <span class="chip" data-act="why" style="border-color:#C7DEFB;color:var(--blue);font-weight:700">Почему такая стратегия? →</span>
             </div>
             ${kpiCard(t)}
+            ${placementCard()}
             <div style="background:#fff;border:1px solid var(--bd);border-radius:16px;padding:18px">
               <div style="font:700 12.5px Manrope;color:var(--navy);margin-bottom:13px">Как распределён бюджет</div>
               <div class="stack" style="margin-bottom:14px"><span style="width:${g.core.pct}%;background:#1668E3"></span><span style="width:${g.adj.pct}%;background:#5FA0F0"></span><span style="width:${g.exp.pct}%;background:#0E9AA7"></span></div>
