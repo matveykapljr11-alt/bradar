@@ -88,18 +88,24 @@
     if (typeof buildPlan === 'function') {
       var _build = buildPlan;
       buildPlan = function () {
-        _build.apply(this, arguments); // instant local plan first
+        _build.apply(this, arguments); // real-only: sets a "searching" state, no seed
         try {
           var body = { desc: S.brand.desc, brand: S.brand.name, vertical: S.vertical, budget: S.brief.budget, exclude: S.brief.exclude, goal: S.brief.goal, geo: S.brief.geo, audience: S.brief.audience };
           api('/api/analyze', { method: 'POST', body: JSON.stringify(body) }).then(function (plan) {
-            if (!plan || !Array.isArray(plan.channels) || !plan.channels.length) return;
-            S.channels = plan.channels;
-            if (plan.plan) { S.plan.overlap = plan.plan.overlap; S.plan.confidence = plan.plan.confidence; S.plan.clicks = plan.plan.clicks; }
-            if (plan.strategy) S.plan.strategy = plan.strategy;
-            window.BRADAR.lastSource = plan.source;
+            S._searching = false;
+            if (plan && Array.isArray(plan.channels) && plan.channels.length) {
+              S.channels = plan.channels;
+              S.pool = Array.isArray(plan.pool) ? plan.pool : [];   // real replacement options
+              S._noData = false;
+              if (plan.plan) { S.plan.overlap = plan.plan.overlap; S.plan.confidence = plan.plan.confidence; S.plan.clicks = plan.plan.clicks; }
+              if (plan.strategy) S.plan.strategy = plan.strategy;
+            } else {
+              S.channels = []; S.pool = []; S._noData = true;        // real search found nothing — honest empty state
+            }
+            window.BRADAR.lastSource = plan && plan.source;
             reRender(['analysis', 'plan']);
-          }).catch(function () {});
-        } catch (e) {}
+          }).catch(function () { try { S._searching = false; S._noData = true; reRender(['analysis', 'plan']); } catch (e) {} });
+        } catch (e) { try { S._searching = false; } catch (e2) {} }
       };
     }
   } catch (e) {}

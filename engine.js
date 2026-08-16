@@ -273,8 +273,19 @@ function buildPlan(input = {}) {
   const budget = Number(input.budget) || BASE_BUDGET;
   const exTopics = new Set((input.exclude || []).map(e => EXCLUDE_MAP[e]).filter(Boolean));
 
-  // candidate pool: real data source (if provided) wins; otherwise the seed catalog.
+  // REAL SEARCH ONLY: build strictly from live candidates. The seed catalog below is
+  // never used in production — it stays only for the standalone prototype / tests, gated
+  // behind BRADAR_ALLOW_SEED. No real channels → honest empty plan (noData), no fakes.
   const realData = Array.isArray(input.candidates) && input.candidates.length > 0;
+  const ALLOW_SEED = process.env.BRADAR_ALLOW_SEED === '1';
+  if (!realData && !ALLOW_SEED) {
+    return {
+      vertical, brand, budget, tags: (V_META[vertical] || V_META.generic).tags,
+      channels: [], pool: [], totals: { budget: 0, count: 0, views: 0, avgCpm: 0 },
+      groups: groupTotals([]), plan: { overlap: 0, confidence: '—', clicks: '—' },
+      source: 'engine', dataSource: 'none', noData: true,
+    };
+  }
   let pool;
   if (realData) {
     pool = input.candidates.filter(c => !exTopics.has(c.topic));
@@ -317,6 +328,8 @@ function buildPlan(input = {}) {
     vertical, brand, budget,
     tags: (V_META[vertical] || V_META.generic).tags,
     channels: chans,
+    // extra live candidates (not selected) — used as real replacement options, no seed
+    pool: realData ? scored.slice(base.length, base.length + 12).map(c => Object.assign({}, c)) : [],
     totals: { budget: totals.budget, count: totals.count, views: Math.round(totals.views), avgCpm: Math.round(totals.avgCpm) },
     groups: groupTotals(chans),
     plan: { overlap: overlapOf(chans), confidence: confidenceOf(chans), clicks: clicksRange(totals.views) },
@@ -325,8 +338,10 @@ function buildPlan(input = {}) {
   };
 }
 
-/** Alternatives to replace a channel, taken from the vertical pool, ranked, top 3. */
+/** Alternatives to replace a channel. Real-only: replacements come from the live pool
+ *  returned by buildPlan; the seed pool is used only when BRADAR_ALLOW_SEED is set. */
 function altsFor(vertical, planChannelIds, channelId, curCpm, curMatch, curReach) {
+  if (process.env.BRADAR_ALLOW_SEED !== '1') return [];
   const inPlan = new Set(planChannelIds);
   const pool = (POOL[vertical] || POOL.generic).filter(c => !inPlan.has(c.id));
   return pool.slice().sort((a, b) => b.match - a.match).slice(0, 3).map(c => ({

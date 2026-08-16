@@ -1,5 +1,8 @@
 'use strict';
-/* Engine assertions. Run: node test-engine.js */
+/* Engine assertions. Run: node test-engine.js
+ * Seed catalog is production-disabled; enable it so these tests can exercise the
+ * scoring/budget logic against a known pool. */
+process.env.BRADAR_ALLOW_SEED = '1';
 const E = require('./engine');
 const results = [];
 const ok = (name, cond) => results.push([name, !!cond]);
@@ -19,6 +22,17 @@ ok('edu vertical', p1.vertical === 'edu');
 ok('budget sums exactly', p1.channels.reduce((s, c) => s + c.price, 0) === 300000);
 ok('totals.budget matches', p1.totals.budget === 300000);
 ok('6 channels for non-beauty', p1.channels.length === 6);
+
+// 3b. real-only: with seed disabled and no live candidates → honest empty plan (no fakes)
+delete process.env.BRADAR_ALLOW_SEED;
+const empty = E.buildPlan({ desc: 'уходовая косметика для чувствительной кожи', budget: 150000 });
+ok('real-only: empty plan when no candidates', empty.noData === true && empty.channels.length === 0);
+ok('real-only: still builds from live candidates', (() => {
+  const cand = [{ id: 'r1', name: 'Живой канал', cat: 'Красота', topic: 'skincare', subs: 50000, match: 80, cpm: 500, reach: 12000, w: 12000, eng: '5%', adShare: '10%', real: true }];
+  const pl = E.buildPlan({ desc: 'косметика', budget: 100000, candidates: cand });
+  return !pl.noData && pl.channels.length === 1 && pl.channels[0].id === 'r1';
+})());
+process.env.BRADAR_ALLOW_SEED = '1';
 
 // 4. exclusions remove matching topics
 const pEx = E.buildPlan({ desc: 'бренд одежды', budget: 150000, exclude: ['Новости'] });

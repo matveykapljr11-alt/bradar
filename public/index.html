@@ -440,7 +440,7 @@ function detectVertical(text){
   return 'generic';
 }
 const V_META={
-  beauty:{brand:'Sensé',site:'sense-skin.ru',handle:'@sense_skin',tags:['уход за кожей','чувствительная кожа','женщины 25–40','маркетплейсы','осознанное потребление'],aud:'Женщины 25–40, интересующиеся уходом за собой и осознанным потреблением'},
+  beauty:{brand:'ваш бренд',site:'brand.ru',handle:'@brand',tags:['уход за кожей','чувствительная кожа','женщины 25–40','маркетплейсы','осознанное потребление'],aud:'Женщины 25–40, интересующиеся уходом за собой и осознанным потреблением'},
   fashion:{brand:'ваш бренд',site:'brand.ru',handle:'@brand',tags:['одежда','базовый гардероб','стиль','женская аудитория','сезонная коллекция'],aud:'Женщины 20–35, следящие за модой и стилем'},
   edu:{brand:'ваша школа',site:'school.ru',handle:'@school',tags:['обучение','заявки','взрослая аудитория','пробный урок','развитие'],aud:'Взрослые 25–40, готовые учиться новому'},
   app:{brand:'ваше приложение',site:'app.ru',handle:'@app',tags:['мобильное приложение','установки','здоровье','осознанность','25–40'],aud:'Аудитория 25–40, интересующаяся технологиями и здоровьем'},
@@ -496,6 +496,15 @@ function clicksRange(views){
 function buildPlan(){
   const v=S.vertical||'beauty';
   const budget=S.brief.budget||BASE_BUDGET;
+  // REAL SEARCH ONLY: when served by the backend, never fabricate a seed plan. Show a
+  // "searching" state; the backend fills S.channels with real Telemetr channels (or an
+  // honest empty result). The seed builder below runs only in the standalone prototype.
+  if(window.__BRADAR_API__){
+    S.channels=[]; S.pool=[]; S._searching=true; S._noData=false;
+    S.plan.overlap=0; S.plan.confidence='—'; S.plan.clicks='—';
+    S.currentPlanId=null; S.showAll=false; S.sort='match';
+    return;
+  }
   const exTopics=new Set((S.brief.exclude||[]).map(e=>EXCLUDE_MAP[e]).filter(Boolean));
   let base;
   if(v==='beauty'){ base=CHANNELS.filter(c=>!exTopics.has(c.topic)); }
@@ -821,11 +830,11 @@ SCREENS.brief=function(){
  *  SCREEN 1d — analysis (animated)
  * ============================================================= */
 const ASTEPS=[
-  {t:'Изучаем бренд и продукт',s:'Определили 6 интересов аудитории'},
-  {t:'Определяем целевую аудиторию',s:'Женщины 25–40, крупные города'},
-  {t:'Ищем релевантные Telegram-каналы',s:'Проанализировали 1 248 каналов',prog:true},
-  {t:'Проверяем аудиторию и рекламную историю',s:''},
-  {t:'Распределяем бюджет',s:''},
+  {t:'Изучаем бренд и продукт',s:'Разбираем описание и тематику'},
+  {t:'Определяем целевую аудиторию',s:'По вашему описанию'},
+  {t:'Ищем реальные Telegram-каналы',s:'По данным Telemetr',prog:true},
+  {t:'Проверяем аудиторию на накрутку',s:''},
+  {t:'Считаем прогноз и распределяем бюджет',s:''},
 ];
 SCREENS.analysis=function(){
   return statusBar()+
@@ -838,9 +847,9 @@ SCREENS.analysis=function(){
     <div style="margin-top:26px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:15px;backdrop-filter:blur(6px)">
       <div style="font:700 11.5px Manrope;color:rgba(255,255,255,.55);margin-bottom:12px;letter-spacing:.3px">ЧТО МЫ УЖЕ УВИДЕЛИ</div>
       <div style="display:flex;flex-direction:column;gap:11px" id="aFacts">
-        ${fact('#5FE3D0','Проанализировали 1 248 каналов',1)}
-        ${fact('#FFC46B','Исключили 173 канала с подозрительной динамикой',1)}
-        ${fact('#fff','Отобрали 24 подходящих варианта',.5)}
+        ${fact('#5FE3D0','Ищем реальные каналы по вашему описанию',1)}
+        ${fact('#FFC46B','Проверяем аудиторию на накрутку',1)}
+        ${fact('#fff','Считаем прогноз и распределяем бюджет',.5)}
       </div>
     </div>
     <p style="text-align:center;font:500 11.5px/1.5 Manrope;color:rgba(255,255,255,.5);margin-top:18px">Можно закрыть приложение — пришлём уведомление, когда план будет готов</p>
@@ -935,7 +944,29 @@ function placementCard(){
     </div>
   </div>`;
 }
+function planEmptyState(){
+  const searching=S._searching;
+  return statusBar()+
+  `<div class="hero b" style="margin-top:-40px;padding-top:44px;padding-bottom:52px">
+    <div class="hrow"><button class="back" data-act="back">← Параметры</button></div>
+    <h1 style="font-size:23px">Медиаплан для ${esc(S.brand.name||'вашего бренда')}</h1>
+    <p>${searching?'Ищем реальные каналы под ваш бренд…':'Поиск завершён'}</p>
+  </div>
+  <div class="body" style="margin-top:-40px;position:relative;z-index:2">
+    <div class="card lg" style="text-align:center;padding:34px 22px">
+      ${searching
+        ? `<div class="aspin" style="width:30px;height:30px;border:3px solid var(--chip2);border-top-color:var(--blue);border-radius:50%;margin:0 auto 16px"></div>
+           <div style="font:700 15px Manrope;color:var(--navy);margin-bottom:6px">Ищем реальные каналы</div>
+           <p class="hint">Анализируем Telegram-каналы по вашему описанию и проверяем аудиторию на накрутку. Обычно занимает несколько секунд.</p>`
+        : `<div style="font-size:30px;margin-bottom:8px">🔍</div>
+           <div style="font:700 15px Manrope;color:var(--navy);margin-bottom:6px">Не нашли подходящих каналов</div>
+           <p class="hint" style="margin-bottom:16px">По этому описанию в Telegram слишком мало релевантных каналов. Уточните нишу или опишите бренд подробнее — и попробуйте ещё раз.</p>
+           <button class="cta" data-act="newSearch" style="max-width:240px;margin:0 auto">Новый подбор</button>`}
+    </div>
+  </div>`+tabbar('plans');
+}
 SCREENS.plan=function(){
+  if(!S.channels.length) return planEmptyState();
   const t=planTotals(), g=groupTotals(), p=S.plan;
   const sorted=S.channels.slice().sort((a,b)=> S.sort==='cpm'? a.cpm-b.cpm : b.match-a.match);
   const visible=S.showAll?sorted:sorted.slice(0,3);
@@ -947,7 +978,7 @@ SCREENS.plan=function(){
       <div class="hbtns"><span class="hbtn" data-act="save">${saved?'✓ Сохранён':'Сохранить'}</span><span class="hbtn" data-act="share">Поделиться</span><span class="hbtn" data-act="export">•••</span></div>
     </div>
     <h1 style="font-size:24px">Медиаплан для ${S.brand.name}</h1>
-    <p>Мы выбрали ${t.count} каналов из 1 248 проанализированных и распределили бюджет ${fmt(t.budget)} ₽.</p>
+    <p>Подобрали ${t.count} реальных ${plural(t.count,'канал','канала','каналов')} под ваш бренд и распределили бюджет ${fmt(t.budget)} ₽.</p>
   </div>
   <div class="body" style="margin-top:-40px;position:relative;z-index:2">
 
@@ -1576,6 +1607,7 @@ function profileRow(icon,label,act){
  *  DESKTOP PLAN (1k)
  * ============================================================= */
 SCREENS.planDesktop=function(){
+  if(!S.channels.length) return planEmptyState();
   const t=planTotals(),g=groupTotals();
   const rows=S.channels.slice().sort((a,b)=> S.sort==='cpm'? a.cpm-b.cpm : b.match-a.match).map(c=>{
     const share=Math.round(c.price/t.budget*100);
@@ -1612,7 +1644,7 @@ SCREENS.planDesktop=function(){
         </div>
         <div style="position:relative;display:flex;align-items:flex-end;justify-content:space-between;padding:26px 24px 74px">
           <div><h1 style="margin:0 0 6px;font:800 28px/1.2 Manrope;color:#fff;letter-spacing:-.6px">Медиаплан для ${S.brand.name}</h1>
-            <p style="margin:0;font:500 13.5px Manrope;color:rgba(255,255,255,.7)">Мы выбрали ${t.count} каналов из 1 248 проанализированных и распределили бюджет ${fmt(t.budget)} ₽.</p></div>
+            <p style="margin:0;font:500 13.5px Manrope;color:rgba(255,255,255,.7)">Подобрали ${t.count} реальных ${plural(t.count,'канал','канала','каналов')} под ваш бренд и распределили бюджет ${fmt(t.budget)} ₽.</p></div>
           <div style="display:flex;gap:8px;font:700 12px Manrope">
             <span data-act="sortMatch" style="padding:8px 12px;background:rgba(255,255,255,${S.sort!=='cpm'?'.14':'.1'});border:1px solid rgba(255,255,255,${S.sort!=='cpm'?'.28':'.18'});border-radius:10px;color:${S.sort!=='cpm'?'#fff':'rgba(255,255,255,.6)'};cursor:pointer">По соответствию ↓</span>
             <span data-act="sortCpm" style="padding:8px 12px;background:rgba(255,255,255,${S.sort==='cpm'?'.14':'.1'});border:1px solid rgba(255,255,255,${S.sort==='cpm'?'.28':'.18'});border-radius:10px;color:${S.sort==='cpm'?'#fff':'rgba(255,255,255,.6)'};cursor:pointer">По CPM</span></div>
