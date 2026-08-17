@@ -1271,7 +1271,7 @@ function realChannelDetail(c){
     </div>`:''}
     ${creativeCard(c)}
     <div class="card" style="padding:13px 15px;background:var(--soft)">
-      <p style="margin:0;font:500 11.5px/1.5 Manrope;color:rgba(16,38,74,.55)">Данные Telemetr по реальному каналу. Прямая ссылка и рекламные контакты открываются на платном тарифе аналитики — сейчас «Открыть» копирует название для поиска в Telegram.</p>
+      <p style="margin:0;font:500 11.5px/1.5 Manrope;color:rgba(16,38,74,.55)">${chUname(c).length>=3?'Метрики — Telemetr, ссылка на канал — реальная (TGStat). «Открыть» ведёт прямо в Telegram; для размещения напишите админам канала.':'Данные Telemetr по реальному каналу. Прямую ссылку не удалось подтвердить — «Открыть» скопирует название для поиска в Telegram.'}</p>
     </div>
     <div style="display:flex;gap:7px;margin-top:2px">
       <span class="pbtn dark" data-keep="${c.id}">Оставить в плане</span>

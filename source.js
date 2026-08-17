@@ -9,6 +9,7 @@
  * On any error we return null and the engine falls back to its seed catalog.
  * ========================================================================== */
 
+const tgstat = require('./tgstat');
 const KEY = process.env.TELEMETR_API_KEY || '';
 const BASE = process.env.TELEMETR_BASE || 'https://api.tlmtr.io';
 
@@ -215,6 +216,8 @@ async function fetchCandidates(input = {}) {
         } : null,
       };
     }).filter(c => c.subs > 0);
+    // resolve REAL @usernames / t.me links for the shortlist via TGStat (best-effort)
+    try { await tgstat.enrichLinks(out); } catch (e) {}
     return out.length ? out : null;
   } catch (e) {
     if (process.env.ACCESS_LOG === '1') console.error('[source] telemetr failed:', e.message);

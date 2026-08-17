@@ -145,7 +145,7 @@ async function handler(req, res) {
       try { return send(res, 200, fs.readFileSync(CLIENT_JS, 'utf8'), { 'content-type': 'application/javascript; charset=utf-8' }); }
       catch (e) { return send(res, 404, '// not found'); }
     }
-    if (p === '/health') return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed', storage: store.usingRedis ? 'redis' : 'file' });
+    if (p === '/health') return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed', contacts: require('./tgstat').enabled() ? 'tgstat' : 'none', storage: store.usingRedis ? 'redis' : 'file' });
     // admin-only diagnostic: verifies the real channel source actually returns data.
     // Gated behind ADMIN_TOKEN so it can't be used to burn Telemetr quota or probe
     // the upstream shape publicly. Disabled entirely when ADMIN_TOKEN is unset.
