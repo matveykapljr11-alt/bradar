@@ -239,7 +239,7 @@ async function handler(req, res) {
         // ask the model for the real niche + search phrases so we still find the right channels.
         let searchTerms = null;
         try {
-          const weak = !b.vertical || b.vertical === 'generic' || source.keywordsFor(b.desc || '', b.brand || '').length < 2;
+          const weak = !b.vertical || b.vertical === 'generic' || source.keywordsFor(b.desc || '', b.brand || '').length < 3;
           if (weak && ai.enabled()) {
             const cls = await ai.classify(b);
             if (cls) {
