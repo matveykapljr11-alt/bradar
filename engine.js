@@ -16,7 +16,7 @@ const GROUPS = {
   adj:  { name: 'Смежные интересы', short: 'Смежные интересы', color: '#5FA0F0', desc: 'Смежные интересы аудитории — расширяем охват' },
   exp:  { name: 'Экспериментальные каналы', short: 'Эксперименты', color: '#0E9AA7', desc: 'Новые сегменты и гипотезы для проверки' },
 };
-const TOPIC_GROUP = { skincare:'core', beauty:'core', fashion:'core', edu:'core', b2b:'core', app:'core', games:'core', realestate:'core', auto:'core', food:'core', health:'core', fitness:'core', travel:'core', home:'core', kids:'core', pets:'core', marketing:'core', it_dev:'core', jobs:'core', psychology:'core', esoteric:'core', music:'core', cinema:'core', books:'core', science:'core', gifts:'core', electronics:'core', dating:'core', legal:'core', art:'core', lifestyle:'adj', conscious:'adj', wellness:'exp', news:'exp', finance:'exp', crypto:'exp', politics:'exp', gambling:'exp', adult:'exp' };
+const TOPIC_GROUP = { skincare:'core', beauty:'core', fashion:'core', edu:'core', b2b:'core', app:'core', games:'core', realestate:'core', auto:'core', food:'core', health:'core', fitness:'core', travel:'core', home:'core', kids:'core', pets:'core', marketing:'core', it_dev:'core', jobs:'core', psychology:'core', esoteric:'core', music:'core', cinema:'core', books:'core', science:'core', gifts:'core', electronics:'core', dating:'core', legal:'core', art:'core', ecommerce:'core', logistics:'core', wedding:'core', beauty_serv:'core', crafts:'core', garden:'core', construction:'core', jewelry:'core', anime:'core', outdoor:'core', events:'core', charity:'core', tattoo:'core', lifestyle:'adj', conscious:'adj', wellness:'exp', news:'exp', finance:'exp', crypto:'exp', politics:'exp', gambling:'exp', adult:'exp' };
 const EXCLUDE_MAP = { 'Политика':'politics', 'Азартные игры':'gambling', 'Контент 18+':'adult', 'Криптовалюты':'crypto', 'Новости':'news' };
 
 const AVPAL = [['#F3D9DC','#E8B9C4','#8A5763'],['#F6E7CF','#E9C89A','#8A6B37'],['#DCE4F5','#B9C8E8','#5A6B90'],['#D9EFEA','#AFDCD2','#3E7A6E'],['#E3EAF8','#BFCFEC','#4F638C'],['#F0E4F2','#D3BEDD','#6E5A82'],['#E6E0F5','#C6B6E0','#645488'],['#DDEFE6','#B3D9C4','#417A5E']];
@@ -185,6 +185,19 @@ const V_META = {
   dating:  { brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['знакомства','отношения','свидания','молодёжь','город'] },
   legal:   { brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['юристы','право','защита','консультации','бизнес и люди'] },
   art:     { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['искусство','дизайн','творчество','вдохновение','креатив'] },
+  ecommerce:  { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['маркетплейсы','селлеры','товарный бизнес','WB и Ozon','предприниматели'] },
+  logistics:  { brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['логистика','доставка','грузоперевозки','фулфилмент','бизнес'] },
+  wedding:    { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['свадьба','организация','невесты','торжество','город'] },
+  beauty_serv:{ brand:'ваш салон', site:'brand.ru', handle:'@brand', tags:['салон красоты','маникюр','косметология','бьюти-услуги','город'] },
+  crafts:     { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['рукоделие','хендмейд','творчество','мастер-классы','хобби'] },
+  garden:     { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['сад','огород','дача','растения','дачники'] },
+  construction:{ brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['строительство','ремонт','отделка','стройматериалы','город'] },
+  jewelry:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['украшения','ювелирные','подарки','стиль','город'] },
+  anime:      { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['аниме','манга','гик-культура','фандом','молодёжь'] },
+  outdoor:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['охота','рыбалка','туризм','снаряжение','активный отдых'] },
+  events:     { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['афиша','мероприятия','концерты','досуг','город'] },
+  charity:    { brand:'ваш фонд', site:'brand.ru', handle:'@brand', tags:['благотворительность','фонд','волонтёры','помощь','социальное'] },
+  tattoo:     { brand:'ваша студия', site:'brand.ru', handle:'@brand', tags:['тату','татуировки','пирсинг','искусство','молодёжь'] },
   generic: { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['аудитория 25–40','узнаваемость','продажи','lifestyle','города-миллионники'] },
 };
 
@@ -210,6 +223,7 @@ function detectVertical(text) {
   if (/ваканс|\bработа\b|трудоустрой|резюме|карьер|рекрутин|\bнайм\b|подработ/.test(t)) return 'jobs';
   if (/психолог|ментальн|самооцен|терапи[яю]|эмоцион|выгоран|тревожн/.test(t)) return 'psychology';
   if (/астролог|гороскоп|таро|эзотер|нумеролог|натальн|зодиак|метафизик/.test(t)) return 'esoteric';
+  if (/афиша|мероприяти|фестивал|стендап|standup|выставк|билеты на|шоу-программ/.test(t)) return 'events';
   if (/музык|\bпесн|\bтрек[иаов]|артист|лейбл|битмейк|саундтрек|плейлист|концерт/.test(t)) return 'music';
   if (/\bкино|фильм|сериал|кинотеатр|режисс|стриминг|нетфликс/.test(t)) return 'cinema';
   if (/книг|литератур|издательств|чтени|писател|нонфикшн|аудиокниг/.test(t)) return 'books';
@@ -219,6 +233,18 @@ function detectVertical(text) {
   if (/знакомств|дейтинг|dating|свидани|найти пару/.test(t)) return 'dating';
   if (/юрист|юридическ|адвокат|\bправов|нотариус|судебн|банкротств/.test(t)) return 'legal';
   if (/искусств|художник|иллюстрац|дизайнер|фотограф|живопис|галере[яи]|\bарт-/.test(t)) return 'art';
+  if (/маркетплейс|селлер|wildberries|\bwb\b|\bozon\b|озон|товарк|товарный бизнес|фулфилмент|карточк товар/.test(t)) return 'ecommerce';
+  if (/логистик|грузоперевоз|грузов перевозк|транспортн компан|курьерск|служба доставк|перевозк грузов/.test(t)) return 'logistics';
+  if (/свад[ье]б|невест|бракосочет|молодожён|организация торжеств/.test(t)) return 'wedding';
+  if (/салон красот|маникюр|педикюр|парикмахер|косметолог|барбершоп|шугаринг|наращивани|бровист|лашмейкер/.test(t)) return 'beauty_serv';
+  if (/рукодел|хендмейд|handmade|вязани|вышивк|скрапбук|мастер-класс|своими руками|лепк[аи]/.test(t)) return 'crafts';
+  if (/садовод|огород|\bдач[аеи]|рассад|\bсемена\b|ландшафт|комнатн растени|цветовод|теплиц/.test(t)) return 'garden';
+  if (/строительств|стройматериал|отделочн|прораб|фасад|кровл|фундамент|каркасн дом/.test(t)) return 'construction';
+  if (/ювелир|украшени|бижутери|драгоценн|\bсерьги|обручальн|помолвочн/.test(t)) return 'jewelry';
+  if (/аниме|манга|otaku|отаку|косплей|комикс|манхв|вебтун/.test(t)) return 'anime';
+  if (/охот[аеиы]|рыбалк|рыболов|кемпинг|поход[ыаев]|снаряжени|выживани|альпин/.test(t)) return 'outdoor';
+  if (/благотворительн|\bнко\b|волонтёр|волонтер|пожертвован|сбор средств|некоммерческ/.test(t)) return 'charity';
+  if (/тату|татуиров|пирсинг/.test(t)) return 'tattoo';
   if (/b2b|saas|бизнес|crm|склад|предпринимат|сервис для|оптов|поставщик/.test(t)) return 'b2b';
   if (/приложен|\bapp\b|устан|мобильн|медитац|трекер|сервис-приложение/.test(t)) return 'app';
   return 'generic';

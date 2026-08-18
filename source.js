@@ -16,7 +16,7 @@ const BASE = process.env.TELEMETR_BASE || 'https://api.tlmtr.io';
 function enabled() { return !!KEY; }
 
 // estimated CPM (₽ per 1000 views) by topic — rough RU market; tweak freely
-const CPM_BY_TOPIC = { skincare: 560, beauty: 560, fashion: 520, edu: 420, app: 460, b2b: 640, games: 450, realestate: 640, auto: 520, food: 480, health: 520, fitness: 470, travel: 500, home: 500, kids: 480, pets: 470, marketing: 600, it_dev: 620, jobs: 520, psychology: 520, esoteric: 480, music: 460, cinema: 480, books: 440, science: 520, gifts: 500, electronics: 500, dating: 500, legal: 560, art: 480, lifestyle: 500, conscious: 480, wellness: 470, news: 680, finance: 700, crypto: 750 };
+const CPM_BY_TOPIC = { skincare: 560, beauty: 560, fashion: 520, edu: 420, app: 460, b2b: 640, games: 450, realestate: 640, auto: 520, food: 480, health: 520, fitness: 470, travel: 500, home: 500, kids: 480, pets: 470, marketing: 600, it_dev: 620, jobs: 520, psychology: 520, esoteric: 480, music: 460, cinema: 480, books: 440, science: 520, gifts: 500, electronics: 500, dating: 500, legal: 560, art: 480, ecommerce: 560, logistics: 560, wedding: 560, beauty_serv: 540, crafts: 460, garden: 460, construction: 560, jewelry: 560, anime: 440, outdoor: 480, events: 500, charity: 460, tattoo: 480, lifestyle: 500, conscious: 480, wellness: 470, news: 680, finance: 700, crypto: 750 };
 // map a Telemetr category string → our topic (for budget grouping + CPM)
 function topicOf(category, vertical) {
   const c = (category || '').toLowerCase();
@@ -31,7 +31,7 @@ function topicOf(category, vertical) {
   if (/news|новост/.test(c)) return 'news';
   if (/эко|осознан|conscious/.test(c)) return 'conscious';
   // fall back to the detected vertical's own topic-ish default
-  return ({ beauty: 'skincare', fashion: 'fashion', edu: 'edu', app: 'app', b2b: 'b2b', crypto: 'crypto', games: 'games', realestate: 'realestate', finance: 'finance', auto: 'auto', food: 'food', health: 'health', fitness: 'fitness', travel: 'travel', home: 'home', kids: 'kids', pets: 'pets', marketing: 'marketing', it_dev: 'it_dev', jobs: 'jobs', psychology: 'psychology', esoteric: 'esoteric', music: 'music', cinema: 'cinema', books: 'books', science: 'science', gifts: 'gifts', electronics: 'electronics', dating: 'dating', legal: 'legal', art: 'art' })[vertical] || 'lifestyle';
+  return ({ beauty: 'skincare', fashion: 'fashion', edu: 'edu', app: 'app', b2b: 'b2b', crypto: 'crypto', games: 'games', realestate: 'realestate', finance: 'finance', auto: 'auto', food: 'food', health: 'health', fitness: 'fitness', travel: 'travel', home: 'home', kids: 'kids', pets: 'pets', marketing: 'marketing', it_dev: 'it_dev', jobs: 'jobs', psychology: 'psychology', esoteric: 'esoteric', music: 'music', cinema: 'cinema', books: 'books', science: 'science', gifts: 'gifts', electronics: 'electronics', dating: 'dating', legal: 'legal', art: 'art', ecommerce: 'ecommerce', logistics: 'logistics', wedding: 'wedding', beauty_serv: 'beauty_serv', crafts: 'crafts', garden: 'garden', construction: 'construction', jewelry: 'jewelry', anime: 'anime', outdoor: 'outdoor', events: 'events', charity: 'charity', tattoo: 'tattoo' })[vertical] || 'lifestyle';
 }
 
 const AVPAL = [['#F3D9DC', '#E8B9C4', '#8A5763'], ['#F6E7CF', '#E9C89A', '#8A6B37'], ['#DCE4F5', '#B9C8E8', '#5A6B90'], ['#D9EFEA', '#AFDCD2', '#3E7A6E'], ['#E3EAF8', '#BFCFEC', '#4F638C'], ['#F0E4F2', '#D3BEDD', '#6E5A82'], ['#E6E0F5', '#C6B6E0', '#645488'], ['#DDEFE6', '#B3D9C4', '#417A5E']];
@@ -96,6 +96,19 @@ const VERTICAL_TERMS = {
   dating: ['знакомства', 'отношения', 'свидания', 'общение', 'психология отношений'],
   legal: ['юрист', 'право', 'юридические услуги', 'законы', 'защита прав'],
   art: ['искусство', 'дизайн', 'иллюстрация', 'фотография', 'творчество'],
+  ecommerce: ['маркетплейсы', 'селлеры', 'товарный бизнес', 'wildberries', 'ozon'],
+  logistics: ['логистика', 'доставка', 'грузоперевозки', 'склад', 'фулфилмент'],
+  wedding: ['свадьба', 'свадебное', 'организация свадьбы', 'невеста', 'торжество'],
+  beauty_serv: ['салон красоты', 'маникюр', 'косметология', 'парикмахер', 'бьюти'],
+  crafts: ['рукоделие', 'хендмейд', 'мастер-классы', 'творчество', 'handmade'],
+  garden: ['сад', 'огород', 'дача', 'растения', 'ландшафт'],
+  construction: ['строительство', 'ремонт', 'отделка', 'стройматериалы', 'дизайн'],
+  jewelry: ['украшения', 'ювелирные', 'бижутерия', 'подарки', 'мода'],
+  anime: ['аниме', 'манга', 'комиксы', 'гик-культура', 'косплей'],
+  outdoor: ['охота', 'рыбалка', 'туризм', 'кемпинг', 'снаряжение'],
+  events: ['афиша', 'мероприятия', 'концерты', 'фестивали', 'билеты'],
+  charity: ['благотворительность', 'фонд', 'волонтёры', 'помощь', 'нко'],
+  tattoo: ['тату', 'татуировки', 'пирсинг', 'тату-салон', 'искусство'],
   generic: ['новости', 'лайфстайл', 'саморазвитие', 'психология', 'интересное'],
 };
 // distinctive keywords from the brand text (≥3 chars so «нфт», «wb» survive), minus the brand's own name
