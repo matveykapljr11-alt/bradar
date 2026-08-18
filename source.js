@@ -265,9 +265,13 @@ async function fetchCandidates(input = {}) {
         } : null,
       };
     }).filter(c => c.subs > 0);
-    // resolve REAL @usernames / t.me links for the shortlist via TGStat (best-effort)
+    // resolve REAL @usernames / t.me links + competitor flag (last 3 posts) via TGStat
     try { await tgstat.enrichLinks(out); } catch (e) {}
-    return out.length ? out : null;
+    // drop channels that turned out to be shops selling their own goods (direct competitors),
+    // as long as enough non-competitor channels remain
+    const clean = out.filter(c => !c.competitor);
+    const finalOut = clean.length >= 3 ? clean : out;
+    return finalOut.length ? finalOut : null;
   } catch (e) {
     if (process.env.ACCESS_LOG === '1') console.error('[source] telemetr failed:', e.message);
     return null;

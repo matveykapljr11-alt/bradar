@@ -57,16 +57,37 @@ async function resolveUsername(title, subs) {
   return bestMatch(items, title, subs);
 }
 
-/** Attach resolved username/link to a list of channels in place (best-effort, parallel). */
+/** Text of a channel's last N posts (for competitor / relevance checks). '' on error. */
+async function recentPostsText(username, n) {
+  if (!username) return '';
+  try {
+    const data = await api('/channels/posts', { channelId: '@' + username, limit: n || 3, extended: 0 });
+    const items = rowsOf(data);
+    return items.map(p => String((p && (p.text || (p.media && p.media.caption))) || '')).join(' \n ').slice(0, 2500);
+  } catch (e) { return ''; }
+}
+// count "own-store" commerce signals in post text — a shop selling its own goods (a direct
+// competitor) reads very differently from a content/media channel where the audience is.
+function commerceHits(text) {
+  const t = String(text || '').toLowerCase();
+  return (t.match(/куп(и|ить|ите)\b|заказать|закажи|оформить заказ|в наличии|в продаже|\bцена\b|стоимост|₽|руб\.|\bр\.\b|скидк|промокод|корзин|артикул|распродаж|каталог|наш магазин|по промокоду|успей купить/g) || []).length;
+}
+/** Pure: is this channel a shop selling its own goods (competitor), judged by post text? */
+function isSellerByPosts(text) { return commerceHits(text) >= 5; }
+
+/** Attach resolved username/link (+ competitor flag from last posts) to channels in place. */
 async function enrichLinks(channels) {
   if (!enabled() || !Array.isArray(channels) || !channels.length) return channels;
   await Promise.all(channels.map(async c => {
     try {
       const r = await resolveUsername(c.name, c.subs);
-      if (r) { c.username = r.username; c.handle = '@' + r.username; c.link = r.link; c.resolved = true; }
+      if (!r) return;
+      c.username = r.username; c.handle = '@' + r.username; c.link = r.link; c.resolved = true;
+      const txt = await recentPostsText(r.username, 3);   // last 3 posts → catch neutrally-named shops
+      if (txt) { c.commerce = commerceHits(txt); c.competitor = isSellerByPosts(txt); }
     } catch (e) {}
   }));
   return channels;
 }
 
-module.exports = { enabled, resolveUsername, enrichLinks, bestMatch };
+module.exports = { enabled, resolveUsername, enrichLinks, bestMatch, recentPostsText, commerceHits, isSellerByPosts };
