@@ -16,7 +16,7 @@ const GROUPS = {
   adj:  { name: 'Смежные интересы', short: 'Смежные интересы', color: '#5FA0F0', desc: 'Смежные интересы аудитории — расширяем охват' },
   exp:  { name: 'Экспериментальные каналы', short: 'Эксперименты', color: '#0E9AA7', desc: 'Новые сегменты и гипотезы для проверки' },
 };
-const TOPIC_GROUP = { skincare:'core', beauty:'core', fashion:'core', edu:'core', b2b:'core', app:'core', games:'core', lifestyle:'adj', conscious:'adj', wellness:'exp', news:'exp', finance:'exp', crypto:'exp', politics:'exp', gambling:'exp', adult:'exp' };
+const TOPIC_GROUP = { skincare:'core', beauty:'core', fashion:'core', edu:'core', b2b:'core', app:'core', games:'core', realestate:'core', auto:'core', food:'core', health:'core', fitness:'core', travel:'core', home:'core', kids:'core', pets:'core', lifestyle:'adj', conscious:'adj', wellness:'exp', news:'exp', finance:'exp', crypto:'exp', politics:'exp', gambling:'exp', adult:'exp' };
 const EXCLUDE_MAP = { 'Политика':'politics', 'Азартные игры':'gambling', 'Контент 18+':'adult', 'Криптовалюты':'crypto', 'Новости':'news' };
 
 const AVPAL = [['#F3D9DC','#E8B9C4','#8A5763'],['#F6E7CF','#E9C89A','#8A6B37'],['#DCE4F5','#B9C8E8','#5A6B90'],['#D9EFEA','#AFDCD2','#3E7A6E'],['#E3EAF8','#BFCFEC','#4F638C'],['#F0E4F2','#D3BEDD','#6E5A82'],['#E6E0F5','#C6B6E0','#645488'],['#DDEFE6','#B3D9C4','#417A5E']];
@@ -161,6 +161,16 @@ const V_META = {
   crypto:  { brand:'ваш проект', site:'project.io', handle:'@project', tags:['крипта','NFT','инвестиции','трейдинг','Web3'] },
   b2b:     { brand:'ваш сервис', site:'service.ru', handle:'@service', tags:['B2B','заявки','предприниматели','малый бизнес','автоматизация'] },
   games:   { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['настольные игры','гейминг','досуг','игровое сообщество','развлечения'] },
+  realestate:{ brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['недвижимость','новостройки','инвестиции','ипотека','город'] },
+  finance: { brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['финансы','инвестиции','деньги','финграмотность','25–45'] },
+  auto:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['авто','автомобили','автовладельцы','сервис','город'] },
+  food:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['еда','доставка','рестораны','фудтех','города-миллионники'] },
+  health:  { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['здоровье','медицина','забота о себе','профилактика','25–45'] },
+  fitness: { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['фитнес','спорт','зож','тренировки','активный образ жизни'] },
+  travel:  { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['путешествия','туризм','отдых','бронирование','города-миллионники'] },
+  home:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['интерьер','дом','мебель','уют','ремонт'] },
+  kids:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['дети','родители','семья','развитие','мамы'] },
+  pets:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['питомцы','животные','зоотовары','забота','владельцы'] },
   generic: { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['аудитория 25–40','узнаваемость','продажи','lifestyle','города-миллионники'] },
 };
 
@@ -171,8 +181,18 @@ function detectVertical(text) {
   if (/одежд|мода|fashion|коллекц|обув|аксессуар|гардероб|бренд одежды/.test(t)) return 'fashion';
   if (/настол|гейм|\bgame|игров|играм|игрок|игры|киберспорт|приставк|головолом|квиз|викторин|бродилк/.test(t)) return 'games';
   if (/школ|курс|обучен|изучен|educ|english|англ|язык|лингвист|грамматик|словар|разговорн|носител|урок|вебинар|образован|репетит|самоучит/.test(t)) return 'edu';
-  if (/приложен|\bapp\b|устан|мобильн|медитац|трекер|сервис-приложение/.test(t)) return 'app';
+  if (/недвижим|новостройк|квартир|застройщик|ипотек|риелтор|риэлтор|апартамент|коттедж|таунхаус/.test(t)) return 'realestate';
+  if (/банк|инвестиц|финанс|брокер|вклад|кредит|дивиденд|облигац|биржа|финтех|fintech|накоплен|страхован/.test(t)) return 'finance';
+  if (/автомобил|автосервис|автозапчаст|иномарк|тюнинг|шиномонтаж|каршеринг|\bавто\b|машин[аеуы]/.test(t)) return 'auto';
+  if (/ресторан|кафе|доставка еды|\bед[аыу]\b|кулинар|рецепт|фудтех|бариста|кофейн|пекарн|бургер|пицц|суши|foodtech/.test(t)) return 'food';
+  if (/медицин|клиник|врач|стоматолог|аптек|\bбад\b|анализы|телемедицин|здоровь|психотерап|терапевт|диагностик|нутрициол/.test(t)) return 'health';
+  if (/фитнес|тренировк|спортзал|спортпит|\bспорт|\bбег\b|йога|кроссфит|похуд|\bзож\b|марафон/.test(t)) return 'fitness';
+  if (/путешеств|туризм|турагент|отел[ья]|авиабилет|перелёт|перелет|экскурс|\bвиз[аы]\b|бронирован|hotel|travel/.test(t)) return 'travel';
+  if (/интерьер|мебель|\bремонт\b|декор|обустройств|товары для дома|посуд|текстиль|обои/.test(t)) return 'home';
+  if (/детск|родител|\bмам[аы]\b|малыш|игрушк|коляск|подгузник|беременн|новорожд|дошкольн/.test(t)) return 'kids';
+  if (/питом|\bживотн|собак|кошк|котик|корм для|ветеринар|зоомагазин|зоотовар|аквариум|груминг/.test(t)) return 'pets';
   if (/b2b|saas|бизнес|crm|склад|предпринимат|сервис для|оптов|поставщик/.test(t)) return 'b2b';
+  if (/приложен|\bapp\b|устан|мобильн|медитац|трекер|сервис-приложение/.test(t)) return 'app';
   return 'generic';
 }
 function guessBrandName(text, def) {
