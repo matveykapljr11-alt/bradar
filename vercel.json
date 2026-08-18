@@ -7,6 +7,7 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/handler.js" },
     { "src": "/health", "dest": "/api/handler.js" },
+    { "src": "/admin", "dest": "/api/handler.js" },
     { "src": "/bradar-api.js", "dest": "/public/bradar-api.js" },
     { "src": "/(.*)", "dest": "/public/index.html" }
   ]

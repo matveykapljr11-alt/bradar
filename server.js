@@ -83,6 +83,17 @@ function authUser(req) {
   return { id: 'dev:' + String(dev).slice(0, 40), name: 'dev', verified: false };
 }
 
+// admin access: a matching ADMIN_TOKEN (query ?token= or x-admin-token header), OR a
+// verified Telegram owner (OWNER_TG_ID). Falls closed if neither is configured.
+function isAdmin(req, url) {
+  const adminTok = process.env.ADMIN_TOKEN || '';
+  const tok = (url && url.searchParams.get('token')) || req.headers['x-admin-token'] || '';
+  if (adminTok && tok === adminTok) return true;
+  const owner = process.env.OWNER_TG_ID || '';
+  if (owner) { const u = authUser(req); if (u && u.verified && String(u.id) === String(owner)) return true; }
+  return false;
+}
+
 /* ---------------- helpers ---------------- */
 function send(res, code, obj, headers) {
   const body = typeof obj === 'string' ? obj : JSON.stringify(obj);
@@ -146,6 +157,16 @@ async function handler(req, res) {
       catch (e) { return send(res, 404, '// not found'); }
     }
     if (p === '/health') return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed', contacts: require('./tgstat').enabled() ? 'tgstat' : 'none', storage: store.usingRedis ? 'redis' : 'file' });
+
+    // ---- admin dashboard ----
+    if (p === '/admin') {
+      try { return send(res, 200, fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8'), { 'content-type': 'text/html; charset=utf-8' }); }
+      catch (e) { return send(res, 404, 'admin page not found'); }
+    }
+    if (p === '/api/admin/stats') {
+      if (!isAdmin(req, url)) return send(res, 403, { error: 'forbidden' });
+      return send(res, 200, await store.adminStats());
+    }
     // admin-only diagnostic: verifies the real channel source actually returns data.
     // Gated behind ADMIN_TOKEN so it can't be used to burn Telemetr quota or probe
     // the upstream shape publicly. Disabled entirely when ADMIN_TOKEN is unset.

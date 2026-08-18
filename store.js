@@ -65,7 +65,10 @@ async function loadUser(uid) {
   return d.users[uid];
 }
 async function saveUser(uid, rec) {
-  if (useRedis) { try { await redisCmd(['SET', KEY(uid), JSON.stringify(rec)]); } catch (e) {} return; }
+  if (useRedis) {
+    try { await redisCmd(['SET', KEY(uid), JSON.stringify(rec)]); await redisCmd(['SADD', 'bradar:users', String(uid)]); } catch (e) {}
+    return;
+  }
   const d = fileDb(); d.users[uid] = rec; fileFlush();
 }
 
@@ -113,5 +116,26 @@ module.exports = {
       active[k] = (g.until === 0) || (g.until > now); // 0 = one-time / permanent
     }
     return active;
+  },
+
+  // ---- admin aggregate (for the dashboard) ----
+  async adminStats() {
+    let ids = [];
+    if (useRedis) { try { ids = (await redisCmd(['SMEMBERS', 'bradar:users'])) || []; } catch (e) { ids = []; } }
+    else { ids = Object.keys(fileDb().users); }
+    ids = ids.slice(0, 2000);
+    const now = Date.now();
+    let plans = 0, favs = 0, activeUsers = 0;
+    const pro = {}, recent = [];
+    for (const uid of ids) {
+      const u = await loadUser(uid);
+      const np = (u.plans || []).length, nf = (u.favs || []).length;
+      plans += np; favs += nf;
+      if (np || nf) activeUsers++;
+      for (const k in (u.grants || {})) { const g = u.grants[k]; if (g && ((g.until === 0) || (g.until > now))) pro[k] = (pro[k] || 0) + 1; }
+      (u.plans || []).slice(0, 3).forEach(p => recent.push({ uid: String(uid).slice(0, 14), brand: p.brand || '—', date: p.date || 0, budget: p.budget || 0, count: Array.isArray(p.channels) ? p.channels.length : 0 }));
+    }
+    recent.sort((a, b) => (b.date || 0) - (a.date || 0));
+    return { users: ids.length, activeUsers, plans, favs, pro, recent: recent.slice(0, 25), storage: useRedis ? 'redis' : 'file', at: now };
   },
 };

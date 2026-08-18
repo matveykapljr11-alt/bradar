@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BRADAR — админ</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Manrope,Segoe UI,Roboto,Arial,sans-serif;background:#0B1526;color:#E7EEF9;padding:26px 18px 60px}
+  .wrap{max-width:920px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 2px;letter-spacing:-.3px}
+  .sub{color:#7E8DA6;font-size:12.5px;margin:0 0 22px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+  .card{background:#13203A;border:1px solid #22314f;border-radius:14px;padding:16px 17px}
+  .card b{display:block;font-size:26px;letter-spacing:-.5px}
+  .card span{color:#7E8DA6;font-size:12px}
+  .sec{font:700 13px Manrope;color:#9DB0CF;margin:24px 0 10px;letter-spacing:.3px;text-transform:uppercase}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;background:#13203A;border:1px solid #22314f;border-radius:12px;overflow:hidden}
+  th{text-align:left;color:#7E8DA6;font-weight:700;font-size:11px;padding:10px 12px;background:#0F1B31}
+  td{padding:9px 12px;border-top:1px solid #1c2942}
+  .pro{display:flex;gap:10px;flex-wrap:wrap}
+  .pill{background:#13203A;border:1px solid #22314f;border-radius:10px;padding:9px 13px;font-size:13px}
+  .pill b{color:#5FE3C0}
+  .err{background:#2A1420;border:1px solid #5A2740;color:#F3B8C8;border-radius:12px;padding:16px;font-size:13px}
+  .mut{color:#7E8DA6}
+  a.reload{color:#6EA8FF;font-size:12.5px;text-decoration:none}
+  .tnum{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BRADAR · админ</h1>
+  <p class="sub">Сводка по мини-аппу · <a class="reload" href="#" id="reload">обновить</a> · <span id="ts" class="mut"></span></p>
+  <div id="root"><p class="mut">Загрузка…</p></div>
+</div>
+<script>
+(function(){
+  function q(k){ return new URLSearchParams(location.search).get(k) || ''; }
+  var token = q('token');
+  function initData(){ try{ return (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) || ''; }catch(e){ return ''; } }
+  function fmt(n){ n=Number(n)||0; return n.toLocaleString('ru-RU').replace(/,/g,' '); }
+  function dt(ms){ if(!ms) return '—'; try{ return new Date(ms).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function render(d){
+    var pro = d.pro || {};
+    var proKeys = Object.keys(pro);
+    var proHtml = proKeys.length ? proKeys.map(function(k){ return '<div class="pill">'+esc(k)+' · <b>'+fmt(pro[k])+'</b></div>'; }).join('') : '<span class="mut">пока нет покупок</span>';
+    var rows = (d.recent||[]).map(function(r){
+      return '<tr><td>'+esc(r.brand)+'</td><td class="tnum">'+fmt(r.budget)+' ₽</td><td class="tnum">'+fmt(r.count)+'</td><td class="mut tnum">'+dt(r.date)+'</td><td class="mut">'+esc(r.uid)+'</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="mut">пока нет планов</td></tr>';
+    document.getElementById('root').innerHTML =
+      '<div class="grid">'+
+        card(fmt(d.users),'пользователей')+
+        card(fmt(d.activeUsers),'активных (с планами)')+
+        card(fmt(d.plans),'сохранённых планов')+
+        card(fmt(d.favs),'в избранном')+
+        card(esc(d.storage),'хранилище')+
+      '</div>'+
+      '<div class="sec">PRO-покупки</div><div class="pro">'+proHtml+'</div>'+
+      '<div class="sec">Последние планы</div>'+
+      '<table><thead><tr><th>Бренд</th><th>Бюджет</th><th>Каналов</th><th>Когда</th><th>User</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    document.getElementById('ts').textContent = 'обновлено '+dt(d.at||Date.now());
+  }
+  function card(v,l){ return '<div class="card"><b class="tnum">'+v+'</b><span>'+l+'</span></div>'; }
+
+  function load(){
+    document.getElementById('root').innerHTML = '<p class="mut">Загрузка…</p>';
+    var url = '/api/admin/stats' + (token ? ('?token='+encodeURIComponent(token)) : '');
+    fetch(url, { headers: { 'x-init-data': initData() } })
+      .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw j; return j; }); })
+      .then(render)
+      .catch(function(e){
+        document.getElementById('root').innerHTML = '<div class="err">Нет доступа. Откройте страницу с параметром <b>?token=ВАШ_ADMIN_TOKEN</b>, либо из Telegram под аккаунтом-владельцем (OWNER_TG_ID).<br><br><span class="mut">'+esc((e&&e.error)||'unauthorized')+'</span></div>';
+      });
+  }
+  document.getElementById('reload').addEventListener('click', function(e){ e.preventDefault(); load(); });
+  try{ if(window.Telegram && Telegram.WebApp) Telegram.WebApp.ready(); }catch(e){}
+  load();
+})();
+</script>
+</body>
+</html>
