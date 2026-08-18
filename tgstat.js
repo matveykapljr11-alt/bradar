@@ -80,7 +80,8 @@ async function recentPostsText(username, n) {
     const items = rowsOf(data);
     txt = items.map(p => String((p && (p.text || (p.media && p.media.caption))) || '')).join(' \n ').slice(0, 2500);
   } catch (e) { txt = ''; }
-  if (txt) await cacheSet(ck, txt, 12 * 3600);   // don't cache empty → retry next time
+  // channel nature is stable for days — default 3-day TTL (env-tunable), refresh rarely
+  if (txt) await cacheSet(ck, txt, (Number(process.env.TGSTAT_POSTS_TTL_H) || 72) * 3600);   // don't cache empty → retry
   return txt;
 }
 // count "own-store" commerce signals in post text — a shop selling its own goods (a direct
