@@ -37,6 +37,13 @@ function topicOf(category, vertical) {
 const AVPAL = [['#F3D9DC', '#E8B9C4', '#8A5763'], ['#F6E7CF', '#E9C89A', '#8A6B37'], ['#DCE4F5', '#B9C8E8', '#5A6B90'], ['#D9EFEA', '#AFDCD2', '#3E7A6E'], ['#E3EAF8', '#BFCFEC', '#4F638C'], ['#F0E4F2', '#D3BEDD', '#6E5A82'], ['#E6E0F5', '#C6B6E0', '#645488'], ['#DDEFE6', '#B3D9C4', '#417A5E']];
 function avOf(name) { const n = name || '•'; const p = AVPAL[(n.charCodeAt(0) + n.length) % AVPAL.length]; return { l: n[0].toUpperCase(), g: `linear-gradient(140deg,${p[0]},${p[1]})`, c: p[2] }; }
 
+// A candidate that is itself a shop/brand (a direct COMPETITOR seller) is a bad ad
+// placement — you advertise where the AUDIENCE is (blogs, reviews, communities), not on a
+// rival store's channel (which also won't sell you ads). Drop obvious seller channels.
+function looksLikeSeller(name) {
+  const t = String(name || '').toLowerCase();
+  return /магазин|интернет-?магазин|шоурум|бутик|маркетплейс|аутлет|outlet|\bshop\b|\bstore\b|official|официальный магазин|wildberries|вайлдберриз|\bozon\b|распродаж/.test(t);
+}
 function num(x) { const n = Number(x); return isFinite(n) ? n : 0; }
 function pick(o, keys) { for (const k of keys) if (o && o[k] != null) return o[k]; return undefined; }
 function handleOf(link, title) {
@@ -176,7 +183,7 @@ async function fetchCandidates(input = {}) {
         const rows = await searchRu(t); let added = 0;
         for (const r of rows) {
           const id = pick(r, ['internal_id', 'id']);
-          if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 5000) {
+          if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 5000 && !looksLikeSeller(pick(r, ['title', 'name']))) {
             r.__rank = rank; seen.add(id); real.push(r);
             if (perTerm && ++added >= perTerm) break;  // don't let one generic word dominate
           }
