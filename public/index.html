@@ -582,9 +582,11 @@ function buildPlan(){
     return;
   }
   const exTopics=new Set((S.brief.exclude||[]).map(e=>EXCLUDE_MAP[e]).filter(Boolean));
+  const rawN=Number(S.brief.channels)||0; const want=rawN>0?Math.max(3,Math.min(20,rawN)):0; // 0 = auto
   let base;
   if(v==='beauty'){ base=CHANNELS.filter(c=>!exTopics.has(c.topic)); }
-  else { base=(POOL[v]||POOL.generic).filter(c=>!exTopics.has(c.topic)).slice().sort((a,b)=>b.match-a.match).slice(0,6); }
+  else { base=(POOL[v]||POOL.generic).filter(c=>!exTopics.has(c.topic)).slice().sort((a,b)=>b.match-a.match); }
+  base=base.slice(0, want || (v==='beauty'?base.length:6));
   const wsum=base.reduce((s,c)=>s+(c.w||10000),0)||1;
   const chans=base.map(c=>{
     const price=Math.max(1000,Math.round(budget*(c.w||10000)/wsum/500)*500);
@@ -635,7 +637,7 @@ const S={
   brand:{name:'',desc:'',site:'',channel:'',subs:4210,pdf:'Презентация линейки.pdf'},
   vertical:'beauty',pool:null,
   tags:['уход за кожей','чувствительная кожа','женщины 25–40','маркетплейсы','осознанное потребление'],
-  brief:{goal:'Продажи',geo:'Вся Россия',budget:150000,audience:'',
+  brief:{goal:'Продажи',geo:'Вся Россия',budget:150000,channels:null,audience:'',
     exclude:['Политика','Азартные игры','Контент 18+']},
   plan:{overlap:12,clicks:'2 400–3 100',confidence:'Средняя'},
   channels:CHANNELS.map(c=>Object.assign({},c)),
@@ -878,11 +880,17 @@ SCREENS.brief=function(){
     <div class="card">
       <div style="font:700 13.5px Manrope;color:var(--navy);margin-bottom:11px">Какой рекламный бюджет?</div>
       <div style="display:flex;align-items:baseline;gap:8px;padding:12px 14px;background:var(--soft);border:1.5px solid var(--blue);border-radius:12px;margin-bottom:9px">
-        <span class="tnum" style="font:800 22px Manrope;color:var(--navy)" id="budgetVal">${fmt(b.budget)}</span>
+        <input id="budgetInput" inputmode="numeric" value="${fmt(b.budget)}" class="tnum" style="font:800 22px Manrope;color:var(--navy);background:transparent;border:none;outline:none;width:100%;min-width:0;padding:0"/>
         <span style="font:700 15px Manrope;color:rgba(16,38,74,.4)">₽</span>
-        <span style="margin-left:auto;font:600 11.5px Manrope;color:var(--blue)">на месяц</span>
+        <span style="margin-left:auto;white-space:nowrap;font:600 11.5px Manrope;color:var(--blue)">на месяц</span>
       </div>
+      <p class="hint" style="margin:-2px 0 9px">Впишите свою сумму или выберите вариант</p>
       <div class="chips">${BUDGETS.map(x=>`<span class="pill ${b.budget===x[0]?'on':''}" data-budget="${x[0]}" style="${b.budget===x[0]?'':'background:var(--chip)'}">${x[1]}</span>`).join('')}</div>
+    </div>
+    <div class="card">
+      <div style="font:700 13.5px Manrope;color:var(--navy);margin-bottom:5px">Сколько каналов в плане?</div>
+      <p class="hint" style="margin-bottom:11px">Авто — подберём оптимально под бюджет. Или задайте своё число.</p>
+      <div class="chips">${[['auto','Авто'],[3,'3'],[5,'5'],[8,'8'],[10,'10'],[12,'12']].map(x=>`<span class="pill ${((b.channels||'auto')===x[0])?'on':''}" data-channels="${x[0]}" style="${((b.channels||'auto')===x[0])?'':'background:var(--chip)'}">${x[1]}</span>`).join('')}</div>
     </div>
     <div class="card">
       <div class="rowhead"><span class="aibadge">AI</span><span class="t" style="font-size:13.5px">Кого хотите привлечь?</span></div>
@@ -1884,7 +1892,7 @@ function openChannel(id,forceDetail){
 }
 
 document.addEventListener('click',e=>{
-  const el=e.target.closest('[data-act],[data-ex],[data-goal],[data-geo],[data-budget],[data-aud],[data-excl],[data-tab],[data-open],[data-expand],[data-ch],[data-replace],[data-keep],[data-open-link],[data-detail],[data-alt],[data-do-replace],[data-close-sheet],[data-fmt],[data-item],[data-load-plan],[data-del-plan],[data-unfav]');
+  const el=e.target.closest('[data-act],[data-ex],[data-goal],[data-geo],[data-budget],[data-channels],[data-aud],[data-excl],[data-tab],[data-open],[data-expand],[data-ch],[data-replace],[data-keep],[data-open-link],[data-detail],[data-alt],[data-do-replace],[data-close-sheet],[data-fmt],[data-item],[data-load-plan],[data-del-plan],[data-unfav]');
   if(!el) return;
 
   // ----- sheet -----
@@ -1919,6 +1927,7 @@ document.addEventListener('click',e=>{
   if(el.hasAttribute('data-goal')){ S.brief.goal=el.getAttribute('data-goal'); refreshBrief(); return; }
   if(el.hasAttribute('data-geo')){ S.brief.geo=el.getAttribute('data-geo'); refreshBrief(); return; }
   if(el.hasAttribute('data-budget')){ S.brief.budget=+el.getAttribute('data-budget'); refreshBrief(); return; }
+  if(el.hasAttribute('data-channels')){ const v=el.getAttribute('data-channels'); S.brief.channels=(v==='auto'?null:+v); refreshBrief(); return; }
   if(el.hasAttribute('data-aud')){ S.brief._aud=el.getAttribute('data-aud'); if(el.getAttribute('data-aud')==='fix') toast('Опишите аудиторию текстом (демо)'); refreshBrief(); return; }
   if(el.hasAttribute('data-excl')){
     const v=el.getAttribute('data-excl'); const arr=S.brief.exclude;
@@ -2029,6 +2038,7 @@ document.addEventListener('input',e=>{
     const hint=$('findHint'); if(hint)hint.textContent=filled?'Продолжим — проверим, что поняли правильно':'Опишите бренд, чтобы продолжить';
   }
   if(e.target.id==='audInput'){ S.brief.audience=e.target.value; S.brief._audEdited=true; }
+  if(e.target.id==='budgetInput'){ const n=parseInt(String(e.target.value).replace(/\D/g,''),10); S.brief.budget=(isFinite(n)&&n>0)?n:0; }
   if(e.target.id==='profDesc'){ S.profile.desc=e.target.value; }
   if(e.target.id==='profAud'){ S.profile.audience=e.target.value; }
   if(e.target.id==='profSite'){ S.profile.site=e.target.value; }

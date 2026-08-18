@@ -90,7 +90,7 @@
       buildPlan = function () {
         _build.apply(this, arguments); // real-only: sets a "searching" state, no seed
         try {
-          var body = { desc: S.brand.desc, brand: S.brand.name, vertical: S.vertical, budget: S.brief.budget, exclude: S.brief.exclude, goal: S.brief.goal, geo: S.brief.geo, audience: S.brief.audience };
+          var body = { desc: S.brand.desc, brand: S.brand.name, vertical: S.vertical, budget: S.brief.budget, channels: S.brief.channels, exclude: S.brief.exclude, goal: S.brief.goal, geo: S.brief.geo, audience: S.brief.audience };
           api('/api/analyze', { method: 'POST', body: JSON.stringify(body) }).then(function (plan) {
             S._searching = false;
             if (plan && Array.isArray(plan.channels) && plan.channels.length) {

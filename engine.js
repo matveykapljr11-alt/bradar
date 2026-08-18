@@ -372,7 +372,11 @@ function buildPlan(input = {}) {
   }
   // brand-aware match, then rank
   const scored = scoreCandidates(pool, (desc + ' ' + brand)).sort((a, b) => b.match - a.match);
-  const base = realData ? scored.slice(0, 8) : (vertical === 'beauty' ? scored : scored.slice(0, 6));
+  // channel count: custom (input.channels) or auto (0)
+  const rawN = Number(input.channels) || 0;
+  const want = rawN > 0 ? Math.max(3, Math.min(20, rawN)) : 0;
+  const autoN = realData ? 8 : (vertical === 'beauty' ? scored.length : 6);
+  const base = scored.slice(0, Math.min(want || autoN, scored.length));
   const wsum = base.reduce((s, c) => s + (c.w || 10000), 0) || 1;
   const chans = base.map(c => {
     const price = Math.max(1000, Math.round(budget * (c.w || 10000) / wsum / 500) * 500);
