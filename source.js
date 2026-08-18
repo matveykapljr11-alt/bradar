@@ -16,7 +16,7 @@ const BASE = process.env.TELEMETR_BASE || 'https://api.tlmtr.io';
 function enabled() { return !!KEY; }
 
 // estimated CPM (₽ per 1000 views) by topic — rough RU market; tweak freely
-const CPM_BY_TOPIC = { skincare: 560, beauty: 560, fashion: 520, edu: 420, app: 460, b2b: 640, lifestyle: 500, conscious: 480, wellness: 470, news: 680, finance: 700, crypto: 750 };
+const CPM_BY_TOPIC = { skincare: 560, beauty: 560, fashion: 520, edu: 420, app: 460, b2b: 640, games: 450, lifestyle: 500, conscious: 480, wellness: 470, news: 680, finance: 700, crypto: 750 };
 // map a Telemetr category string → our topic (for budget grouping + CPM)
 function topicOf(category, vertical) {
   const c = (category || '').toLowerCase();
@@ -24,13 +24,14 @@ function topicOf(category, vertical) {
   if (/fashion|мода|одежд|стиль/.test(c)) return 'fashion';
   if (/educ|обуч|образов|курс|язык/.test(c)) return 'edu';
   if (/нфт|nft|крипт|crypto|токен|блокчейн|web3/.test(c)) return 'crypto';
+  if (/настол|игр|game|гейм|киберспорт/.test(c)) return 'games';
   if (/tech|app|прилож|гаджет|it|софт/.test(c)) return 'app';
   if (/business|бизнес|marketing|маркет|финанс|finance/.test(c)) return 'b2b';
   if (/health|wellness|спорт|фитнес|зож|здоров/.test(c)) return 'wellness';
   if (/news|новост/.test(c)) return 'news';
   if (/эко|осознан|conscious/.test(c)) return 'conscious';
   // fall back to the detected vertical's own topic-ish default
-  return ({ beauty: 'skincare', fashion: 'fashion', edu: 'edu', app: 'app', b2b: 'b2b', crypto: 'crypto' })[vertical] || 'lifestyle';
+  return ({ beauty: 'skincare', fashion: 'fashion', edu: 'edu', app: 'app', b2b: 'b2b', crypto: 'crypto', games: 'games' })[vertical] || 'lifestyle';
 }
 
 const AVPAL = [['#F3D9DC', '#E8B9C4', '#8A5763'], ['#F6E7CF', '#E9C89A', '#8A6B37'], ['#DCE4F5', '#B9C8E8', '#5A6B90'], ['#D9EFEA', '#AFDCD2', '#3E7A6E'], ['#E3EAF8', '#BFCFEC', '#4F638C'], ['#F0E4F2', '#D3BEDD', '#6E5A82'], ['#E6E0F5', '#C6B6E0', '#645488'], ['#DDEFE6', '#B3D9C4', '#417A5E']];
@@ -70,6 +71,7 @@ const VERTICAL_TERMS = {
   app: ['приложения', 'гаджеты', 'технологии', 'лайфхаки'],
   crypto: ['нфт', 'nft', 'крипта', 'криптовалюта', 'биржа', 'инвестиции'],
   b2b: ['бизнес', 'маркетинг', 'предприниматель', 'продажи', 'стартап'],
+  games: ['настольные игры', 'игры', 'гейминг', 'настолки', 'головоломки'],
   generic: ['новости', 'лайфстайл', 'саморазвитие', 'психология', 'интересное'],
 };
 // distinctive keywords from the brand text (≥3 chars so «нфт», «wb» survive), minus the brand's own name

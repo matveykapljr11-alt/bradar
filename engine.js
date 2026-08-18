@@ -16,7 +16,7 @@ const GROUPS = {
   adj:  { name: 'Смежные интересы', short: 'Смежные интересы', color: '#5FA0F0', desc: 'Смежные интересы аудитории — расширяем охват' },
   exp:  { name: 'Экспериментальные каналы', short: 'Эксперименты', color: '#0E9AA7', desc: 'Новые сегменты и гипотезы для проверки' },
 };
-const TOPIC_GROUP = { skincare:'core', beauty:'core', fashion:'core', edu:'core', b2b:'core', app:'core', lifestyle:'adj', conscious:'adj', wellness:'exp', news:'exp', finance:'exp', crypto:'exp', politics:'exp', gambling:'exp', adult:'exp' };
+const TOPIC_GROUP = { skincare:'core', beauty:'core', fashion:'core', edu:'core', b2b:'core', app:'core', games:'core', lifestyle:'adj', conscious:'adj', wellness:'exp', news:'exp', finance:'exp', crypto:'exp', politics:'exp', gambling:'exp', adult:'exp' };
 const EXCLUDE_MAP = { 'Политика':'politics', 'Азартные игры':'gambling', 'Контент 18+':'adult', 'Криптовалюты':'crypto', 'Новости':'news' };
 
 const AVPAL = [['#F3D9DC','#E8B9C4','#8A5763'],['#F6E7CF','#E9C89A','#8A6B37'],['#DCE4F5','#B9C8E8','#5A6B90'],['#D9EFEA','#AFDCD2','#3E7A6E'],['#E3EAF8','#BFCFEC','#4F638C'],['#F0E4F2','#D3BEDD','#6E5A82'],['#E6E0F5','#C6B6E0','#645488'],['#DDEFE6','#B3D9C4','#417A5E']];
@@ -160,6 +160,7 @@ const V_META = {
   app:     { brand:'ваше приложение', site:'app.ru', handle:'@app', tags:['мобильное приложение','установки','здоровье','осознанность','25–40'] },
   crypto:  { brand:'ваш проект', site:'project.io', handle:'@project', tags:['крипта','NFT','инвестиции','трейдинг','Web3'] },
   b2b:     { brand:'ваш сервис', site:'service.ru', handle:'@service', tags:['B2B','заявки','предприниматели','малый бизнес','автоматизация'] },
+  games:   { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['настольные игры','гейминг','досуг','игровое сообщество','развлечения'] },
   generic: { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['аудитория 25–40','узнаваемость','продажи','lifestyle','города-миллионники'] },
 };
 
@@ -168,6 +169,7 @@ function detectVertical(text) {
   if (/нфт|nft|крипт|crypto|токен|блокчейн|web3|биткоин|bitcoin|ethereum|трейд|coin/.test(t)) return 'crypto';
   if (/косметик|уход|кожа|бьюти|beauty|skincare|крем|сыворотк|макияж|парфюм/.test(t)) return 'beauty';
   if (/одежд|мода|fashion|коллекц|обув|аксессуар|гардероб|бренд одежды/.test(t)) return 'fashion';
+  if (/настол|гейм|\bgame|игров|играм|игрок|игры|киберспорт|приставк|головолом|квиз|викторин|бродилк/.test(t)) return 'games';
   if (/школ|курс|обучен|изучен|educ|english|англ|язык|лингвист|грамматик|словар|разговорн|носител|урок|вебинар|образован|репетит|самоучит/.test(t)) return 'edu';
   if (/приложен|\bapp\b|устан|мобильн|медитац|трекер|сервис-приложение/.test(t)) return 'app';
   if (/b2b|saas|бизнес|crm|склад|предпринимат|сервис для|оптов|поставщик/.test(t)) return 'b2b';
