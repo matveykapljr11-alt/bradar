@@ -118,6 +118,18 @@ module.exports = {
     return active;
   },
 
+  // ---- generic TTL cache (used to avoid re-hitting TGStat for the same channel) ----
+  async cacheGet(key) {
+    if (useRedis) { try { const v = await redisCmd(['GET', 'bradar:cache:' + key]); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+    const d = fileDb(); const c = d.cache && d.cache[key];
+    if (c && (!c.exp || c.exp > Date.now())) return c.v;
+    return null;
+  },
+  async cacheSet(key, value, ttlSec) {
+    if (useRedis) { try { await redisCmd(['SET', 'bradar:cache:' + key, JSON.stringify(value), 'EX', String(ttlSec || 3600)]); } catch (e) {} return; }
+    const d = fileDb(); if (!d.cache) d.cache = {}; d.cache[key] = { v: value, exp: Date.now() + (ttlSec || 3600) * 1000 }; fileFlush();
+  },
+
   // ---- admin aggregate (for the dashboard) ----
   async adminStats() {
     let ids = [];

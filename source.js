@@ -265,12 +265,18 @@ async function fetchCandidates(input = {}) {
         } : null,
       };
     }).filter(c => c.subs > 0);
-    // resolve REAL @usernames / t.me links + competitor flag (last 3 posts) via TGStat
-    try { await tgstat.enrichLinks(out); } catch (e) {}
-    // drop channels that turned out to be shops selling their own goods (direct competitors),
-    // as long as enough non-competitor channels remain
+    // via TGStat: resolve @username/link + read the last 3 posts → competitor flag AND a
+    // brand-relevance signal (does the channel actually post about the brand's topic?)
+    try { await tgstat.enrichLinks(out, brandKw); } catch (e) {}
+    // last posts HELP the match: boost channels that really post on-topic, penalise off-topic
+    out.forEach(c => {
+      if (!c.hasPosts) return;
+      if (c.relHits >= 2) c.match = Math.min(94, c.match + 5);
+      else if (c.relHits === 0) c.match = Math.max(48, c.match - 10);
+    });
+    // drop direct-competitor shops, as long as enough clean channels remain
     const clean = out.filter(c => !c.competitor);
-    const finalOut = clean.length >= 3 ? clean : out;
+    const finalOut = (clean.length >= 3 ? clean : out).sort((a, b) => b.match - a.match);
     return finalOut.length ? finalOut : null;
   } catch (e) {
     if (process.env.ACCESS_LOG === '1') console.error('[source] telemetr failed:', e.message);

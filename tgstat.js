@@ -8,8 +8,11 @@
  * channel in the plan becomes clickable/contactable. Best-effort: any failure
  * just leaves the existing "find in Telegram" fallback.
  * ========================================================================== */
+const store = require('./store');
 const TOKEN = process.env.TGSTAT_TOKEN || process.env.TGSTAT_API_KEY || '';
 const BASE = process.env.TGSTAT_BASE || 'https://api.tgstat.ru';
+async function cacheGet(k) { try { return await store.cacheGet(k); } catch (e) { return null; } }
+async function cacheSet(k, v, ttl) { try { await store.cacheSet(k, v, ttl); } catch (e) {} }
 
 function enabled() { return !!TOKEN; }
 function norm(s) { return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/gi, ' ').trim(); }
@@ -51,20 +54,34 @@ function bestMatch(items, title, subs) {
 async function resolveUsername(title, subs) {
   const q = String(title || '').trim();
   if (q.length < 3) return null;
+  // @username never changes → cache 30 days
+  const ck = 'uname:' + norm(title).slice(0, 40) + ':' + Math.round((Number(subs) || 0) / 10000);
+  const cached = await cacheGet(ck);
+  if (cached !== null) return cached || null;   // false = confirmed no-match (cached)
   let items;
   try { items = rowsOf(await api('/channels/search', { q: q.slice(0, 60), peer_type: 'channel', limit: 8 })); }
   catch (e) { return null; }
-  return bestMatch(items, title, subs);
+  const best = bestMatch(items, title, subs);
+  await cacheSet(ck, best || false, 30 * 86400);
+  return best;
 }
 
-/** Text of a channel's last N posts (for competitor / relevance checks). '' on error. */
+/** Text of a channel's last N posts (for competitor / relevance checks). '' on error.
+ *  Cached ~12h: posts rotate, but the channel's NATURE (shop vs content) is stable enough
+ *  for classification, and this is what saves most of the TGStat quota on repeat channels. */
 async function recentPostsText(username, n) {
   if (!username) return '';
+  const ck = 'posts:' + String(username).toLowerCase();
+  const cached = await cacheGet(ck);
+  if (typeof cached === 'string') return cached;
+  let txt = '';
   try {
     const data = await api('/channels/posts', { channelId: '@' + username, limit: n || 3, extended: 0 });
     const items = rowsOf(data);
-    return items.map(p => String((p && (p.text || (p.media && p.media.caption))) || '')).join(' \n ').slice(0, 2500);
-  } catch (e) { return ''; }
+    txt = items.map(p => String((p && (p.text || (p.media && p.media.caption))) || '')).join(' \n ').slice(0, 2500);
+  } catch (e) { txt = ''; }
+  if (txt) await cacheSet(ck, txt, 12 * 3600);   // don't cache empty → retry next time
+  return txt;
 }
 // count "own-store" commerce signals in post text — a shop selling its own goods (a direct
 // competitor) reads very differently from a content/media channel where the audience is.
@@ -75,16 +92,25 @@ function commerceHits(text) {
 /** Pure: is this channel a shop selling its own goods (competitor), judged by post text? */
 function isSellerByPosts(text) { return commerceHits(text) >= 5; }
 
-/** Attach resolved username/link (+ competitor flag from last posts) to channels in place. */
-async function enrichLinks(channels) {
+/** Attach resolved @username/link, a competitor flag, and a brand-RELEVANCE signal — all
+ *  from the channel's last 3 posts — to each channel in place. `terms` are the brand's
+ *  topic words; relHits counts how many actually appear in what the channel posts. */
+async function enrichLinks(channels, terms) {
   if (!enabled() || !Array.isArray(channels) || !channels.length) return channels;
+  const T = (terms || []).map(s => String(s).toLowerCase()).filter(x => x.length >= 4).map(x => x.slice(0, 5));
   await Promise.all(channels.map(async c => {
     try {
       const r = await resolveUsername(c.name, c.subs);
       if (!r) return;
       c.username = r.username; c.handle = '@' + r.username; c.link = r.link; c.resolved = true;
-      const txt = await recentPostsText(r.username, 3);   // last 3 posts → catch neutrally-named shops
-      if (txt) { c.commerce = commerceHits(txt); c.competitor = isSellerByPosts(txt); }
+      const txt = await recentPostsText(r.username, 3);   // last 3 posts → real content, not just the name
+      if (txt) {
+        const low = txt.toLowerCase();
+        c.commerce = commerceHits(low);
+        c.competitor = c.commerce >= 5;
+        c.relHits = T.length ? T.reduce((n, t) => n + (low.indexOf(t) >= 0 ? 1 : 0), 0) : 0;
+        c.hasPosts = true;
+      }
     } catch (e) {}
   }));
   return channels;
