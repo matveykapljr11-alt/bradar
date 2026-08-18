@@ -214,8 +214,22 @@ async function handler(req, res) {
       }
       if (p === '/api/analyze' && (req.method === 'POST' || req.method === 'GET')) {
         const b = req.method === 'POST' ? await readBody(req) : Object.fromEntries(url.searchParams);
+        // Semantic understanding: when the brand is described vaguely (no direct keywords),
+        // ask the model for the real niche + search phrases so we still find the right channels.
+        let searchTerms = null;
+        try {
+          const weak = !b.vertical || b.vertical === 'generic' || source.keywordsFor(b.desc || '', b.brand || '').length < 2;
+          if (weak && ai.enabled()) {
+            const cls = await ai.classify(b);
+            if (cls) {
+              if (cls.vertical) b.vertical = cls.vertical;
+              if (cls.keywords && cls.keywords.length) searchTerms = cls.keywords;
+              if (!b.audience && cls.audience) b.audience = cls.audience;
+            }
+          }
+        } catch (e) {}
         let candidates = null;
-        try { candidates = await source.fetchCandidates(b); } catch (e) {}
+        try { candidates = await source.fetchCandidates(Object.assign({}, b, { searchTerms })); } catch (e) {}
         let plan = engine.buildPlan(Object.assign({}, b, { candidates }));
         plan = await ai.enrich(b, plan);
         return send(res, 200, plan);

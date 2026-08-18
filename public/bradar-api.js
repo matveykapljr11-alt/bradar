@@ -96,6 +96,7 @@
             if (plan && Array.isArray(plan.channels) && plan.channels.length) {
               S.channels = plan.channels;
               S.pool = Array.isArray(plan.pool) ? plan.pool : [];   // real replacement options
+              if (plan.vertical) S.vertical = plan.vertical;        // sync AI-resolved niche → tags/creative
               S._noData = false;
               if (plan.plan) { S.plan.overlap = plan.plan.overlap; S.plan.confidence = plan.plan.confidence; S.plan.clicks = plan.plan.clicks; }
               if (plan.strategy) S.plan.strategy = plan.strategy;

@@ -79,6 +79,32 @@ function buildUserPrompt(input, plan) {
   ].join('\n');
 }
 
+const VERTICALS = 'crypto,beauty,fashion,games,edu,realestate,finance,auto,food,health,fitness,travel,home,kids,pets,marketing,it_dev,jobs,psychology,esoteric,music,cinema,books,science,gifts,electronics,dating,legal,art,ecommerce,logistics,wedding,beauty_serv,crafts,garden,construction,jewelry,anime,outdoor,events,charity,tattoo,b2b,app,generic';
+/**
+ * Understand a brand by MEANING, not just literal keywords — for vague descriptions
+ * where the regex vertical/keywords miss the real niche. Returns {vertical, keywords,
+ * audience} constrained to our vertical list, or null (disabled / error / no desc).
+ */
+async function classify(input) {
+  if (!enabled()) return null;
+  const desc = String((input && input.desc) || input || '').slice(0, 1200).trim();
+  if (desc.length < 8) return null;
+  const system = 'Ты классифицируешь бренд для подбора рекламных Telegram-каналов. Пойми СМЫСЛ описания, даже если в нём нет прямых ключевых слов и названий ниши. Отвечай СТРОГО одним JSON-объектом, без markdown.';
+  const user = [
+    'Описание бренда: "' + desc + '"',
+    'Выбери ОДНУ наиболее подходящую вертикаль строго из списка (одним словом): ' + VERTICALS,
+    'И придумай 4–6 коротких поисковых фраз (по 1–3 слова, на русском) — по ним будем искать релевантные Telegram-каналы этой ниши. Фразы должны отражать СМЫСЛ ниши, а не копировать слова из описания.',
+    'Верни JSON: {"vertical":"одно_слово_из_списка","keywords":["фраза","фраза"],"audience":"кратко кто целевая аудитория"}',
+  ].join('\n');
+  try {
+    const out = extractJson(await callLLM(system, user, 320));
+    const vlist = VERTICALS.split(',');
+    const vertical = vlist.includes(out.vertical) ? out.vertical : null;
+    const keywords = Array.isArray(out.keywords) ? out.keywords.filter(x => typeof x === 'string' && x.trim().length >= 2).map(x => x.trim()).slice(0, 6) : [];
+    return { vertical, keywords, audience: typeof out.audience === 'string' ? out.audience : '' };
+  } catch (e) { return null; }
+}
+
 /** Enrich an engine plan with model-written rationale. Returns the plan (possibly enriched). */
 async function enrich(input, plan) {
   if (!enabled()) return plan;
@@ -106,4 +132,4 @@ async function enrich(input, plan) {
   return plan;
 }
 
-module.exports = { enrich, enabled, provider, model };
+module.exports = { enrich, classify, enabled, provider, model };
