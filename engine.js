@@ -16,7 +16,7 @@ const GROUPS = {
   adj:  { name: 'Смежные интересы', short: 'Смежные интересы', color: '#5FA0F0', desc: 'Смежные интересы аудитории — расширяем охват' },
   exp:  { name: 'Экспериментальные каналы', short: 'Эксперименты', color: '#0E9AA7', desc: 'Новые сегменты и гипотезы для проверки' },
 };
-const TOPIC_GROUP = { skincare:'core', beauty:'core', fashion:'core', edu:'core', b2b:'core', app:'core', games:'core', realestate:'core', auto:'core', food:'core', health:'core', fitness:'core', travel:'core', home:'core', kids:'core', pets:'core', lifestyle:'adj', conscious:'adj', wellness:'exp', news:'exp', finance:'exp', crypto:'exp', politics:'exp', gambling:'exp', adult:'exp' };
+const TOPIC_GROUP = { skincare:'core', beauty:'core', fashion:'core', edu:'core', b2b:'core', app:'core', games:'core', realestate:'core', auto:'core', food:'core', health:'core', fitness:'core', travel:'core', home:'core', kids:'core', pets:'core', marketing:'core', it_dev:'core', jobs:'core', psychology:'core', esoteric:'core', music:'core', cinema:'core', books:'core', science:'core', gifts:'core', electronics:'core', dating:'core', legal:'core', art:'core', lifestyle:'adj', conscious:'adj', wellness:'exp', news:'exp', finance:'exp', crypto:'exp', politics:'exp', gambling:'exp', adult:'exp' };
 const EXCLUDE_MAP = { 'Политика':'politics', 'Азартные игры':'gambling', 'Контент 18+':'adult', 'Криптовалюты':'crypto', 'Новости':'news' };
 
 const AVPAL = [['#F3D9DC','#E8B9C4','#8A5763'],['#F6E7CF','#E9C89A','#8A6B37'],['#DCE4F5','#B9C8E8','#5A6B90'],['#D9EFEA','#AFDCD2','#3E7A6E'],['#E3EAF8','#BFCFEC','#4F638C'],['#F0E4F2','#D3BEDD','#6E5A82'],['#E6E0F5','#C6B6E0','#645488'],['#DDEFE6','#B3D9C4','#417A5E']];
@@ -171,6 +171,20 @@ const V_META = {
   home:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['интерьер','дом','мебель','уют','ремонт'] },
   kids:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['дети','родители','семья','развитие','мамы'] },
   pets:    { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['питомцы','животные','зоотовары','забота','владельцы'] },
+  marketing:  { brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['маркетинг','SMM','трафик','продвижение','предприниматели'] },
+  it_dev:  { brand:'ваш продукт', site:'brand.ru', handle:'@brand', tags:['IT','разработка','программисты','технологии','digital'] },
+  jobs:    { brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['вакансии','работа','карьера','соискатели','города'] },
+  psychology: { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['психология','саморазвитие','ментальное здоровье','мотивация','25–45'] },
+  esoteric: { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['астрология','эзотерика','гороскоп','саморазвитие','женская аудитория'] },
+  music:   { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['музыка','артисты','новинки','плейлисты','молодёжь'] },
+  cinema:  { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['кино','сериалы','новинки','рецензии','досуг'] },
+  books:   { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['книги','чтение','литература','рецензии','саморазвитие'] },
+  science: { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['наука','научпоп','технологии','любознательные','образование'] },
+  gifts:   { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['подарки','цветы','праздники','сюрпризы','город'] },
+  electronics:{ brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['гаджеты','электроника','техника','обзоры','город'] },
+  dating:  { brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['знакомства','отношения','свидания','молодёжь','город'] },
+  legal:   { brand:'ваш сервис', site:'brand.ru', handle:'@brand', tags:['юристы','право','защита','консультации','бизнес и люди'] },
+  art:     { brand:'ваш проект', site:'brand.ru', handle:'@brand', tags:['искусство','дизайн','творчество','вдохновение','креатив'] },
   generic: { brand:'ваш бренд', site:'brand.ru', handle:'@brand', tags:['аудитория 25–40','узнаваемость','продажи','lifestyle','города-миллионники'] },
 };
 
@@ -191,6 +205,20 @@ function detectVertical(text) {
   if (/интерьер|мебель|\bремонт\b|декор|обустройств|товары для дома|посуд|текстиль|обои/.test(t)) return 'home';
   if (/детск|родител|\bмам[аы]\b|малыш|игрушк|коляск|подгузник|беременн|новорожд|дошкольн/.test(t)) return 'kids';
   if (/питом|\bживотн|собак|кошк|котик|корм для|ветеринар|зоомагазин|зоотовар|аквариум|груминг/.test(t)) return 'pets';
+  if (/маркетинг|\bsmm\b|таргет|трафик|продвижен|лидоген|контент-маркет|воронк продаж/.test(t)) return 'marketing';
+  if (/программир|разработчик|разработк|девопс|devops|бэкенд|фронтенд|нейросет|python|javascript|кодинг|\bit[- ]/.test(t)) return 'it_dev';
+  if (/ваканс|\bработа\b|трудоустрой|резюме|карьер|рекрутин|\bнайм\b|подработ/.test(t)) return 'jobs';
+  if (/психолог|ментальн|самооцен|терапи[яю]|эмоцион|выгоран|тревожн/.test(t)) return 'psychology';
+  if (/астролог|гороскоп|таро|эзотер|нумеролог|натальн|зодиак|метафизик/.test(t)) return 'esoteric';
+  if (/музык|\bпесн|\bтрек[иаов]|артист|лейбл|битмейк|саундтрек|плейлист|концерт/.test(t)) return 'music';
+  if (/\bкино|фильм|сериал|кинотеатр|режисс|стриминг|нетфликс/.test(t)) return 'cinema';
+  if (/книг|литератур|издательств|чтени|писател|нонфикшн|аудиокниг/.test(t)) return 'books';
+  if (/наук[аи]|научпоп|научн|космос|астроном|исследовани|популяризац/.test(t)) return 'science';
+  if (/подарк|подарочн|букет|доставка цвет|флорист|сувенир/.test(t)) return 'gifts';
+  if (/электроник|гаджет|смартфон|ноутбук|наушник|планшет|бытова техник/.test(t)) return 'electronics';
+  if (/знакомств|дейтинг|dating|свидани|найти пару/.test(t)) return 'dating';
+  if (/юрист|юридическ|адвокат|\bправов|нотариус|судебн|банкротств/.test(t)) return 'legal';
+  if (/искусств|художник|иллюстрац|дизайнер|фотограф|живопис|галере[яи]|\bарт-/.test(t)) return 'art';
   if (/b2b|saas|бизнес|crm|склад|предпринимат|сервис для|оптов|поставщик/.test(t)) return 'b2b';
   if (/приложен|\bapp\b|устан|мобильн|медитац|трекер|сервис-приложение/.test(t)) return 'app';
   return 'generic';
