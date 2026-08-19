@@ -44,6 +44,17 @@ function looksLikeSeller(name) {
   const t = String(name || '').toLowerCase();
   return /магазин|интернет-?магазин|шоурум|бутик|маркетплейс|аутлет|outlet|\bshop\b|\bstore\b|official|официальный магазин|wildberries|вайлдберриз|\bozon\b|распродаж/.test(t);
 }
+// major RU cities — for local targeting, if the entered place contains one as a substring
+// (e.g. «новая москва» → «москва»), also search the parent city so local channels appear
+// even without the AI geo-expansion.
+const MAJOR_CITIES = ['москва', 'санкт-петербург', 'петербург', 'спб', 'питер', 'новосибирск', 'екатеринбург', 'казань', 'нижний новгород', 'челябинск', 'самара', 'омск', 'ростов', 'уфа', 'красноярск', 'воронеж', 'пермь', 'волгоград', 'краснодар', 'сочи', 'тюмень', 'ижевск', 'саратов', 'тольятти', 'барнаул', 'ульяновск', 'иркутск', 'хабаровск', 'ярославль', 'владивосток', 'махачкала', 'томск', 'кемерово', 'калининград', 'тула', 'сургут'];
+function expandGeoLocal(geoCity, geoTerms) {
+  let cities = (Array.isArray(geoTerms) && geoTerms.length) ? geoTerms.slice() : String(geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2);
+  const low = String(geoCity || '').toLowerCase();
+  MAJOR_CITIES.forEach(m => { if (low.indexOf(m) >= 0 && !cities.some(c => c.toLowerCase() === m)) cities.push(m); });
+  const seen = new Set();
+  return cities.filter(c => { const k = c.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+}
 function num(x) { const n = Number(x); return isFinite(n) ? n : 0; }
 function pick(o, keys) { for (const k of keys) if (o && o[k] != null) return o[k]; return undefined; }
 function handleOf(link, title) {
@@ -200,10 +211,8 @@ async function fetchCandidates(input = {}) {
     if (brandKw.length >= 2) phrases.push(brandKw.slice(0, 2).join(' '));
     if (phrases.length) await collect(phrases, 8);
     // local targeting: search the city (+ topic) so local channels surface, ranked first
-    // use AI-expanded geo terms (city + parent city/region) when available, else the raw input
-    const cities = (Array.isArray(input.geoTerms) && input.geoTerms.length)
-      ? input.geoTerms.slice(0, 6)
-      : String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
+    // city + parent city/region: AI-expanded terms plus any major city embedded in the input
+    const cities = (input.geoCity || (input.geoTerms && input.geoTerms.length)) ? expandGeoLocal(input.geoCity, input.geoTerms) : [];
     if (cities.length) {
       const topic = brandKw[0] || '';
       // local channels are named by pattern, not by topic — search those patterns
@@ -353,4 +362,4 @@ async function probe(term) {
   return { channels_ru, stats, resolve };
 }
 
-module.exports = { enabled, fetchCandidates, termOf, topicOf, probe, keywordsFor };
+module.exports = { enabled, fetchCandidates, termOf, topicOf, probe, keywordsFor, expandGeoLocal };
