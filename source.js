@@ -44,17 +44,6 @@ function looksLikeSeller(name) {
   const t = String(name || '').toLowerCase();
   return /магазин|интернет-?магазин|шоурум|бутик|маркетплейс|аутлет|outlet|\bshop\b|\bstore\b|official|официальный магазин|wildberries|вайлдберриз|\bozon\b|распродаж/.test(t);
 }
-// major RU cities — for local targeting, if the entered place contains one as a substring
-// (e.g. «новая москва» → «москва»), also search the parent city so local channels appear
-// even without the AI geo-expansion.
-const MAJOR_CITIES = ['москва', 'санкт-петербург', 'петербург', 'спб', 'питер', 'новосибирск', 'екатеринбург', 'казань', 'нижний новгород', 'челябинск', 'самара', 'омск', 'ростов', 'уфа', 'красноярск', 'воронеж', 'пермь', 'волгоград', 'краснодар', 'сочи', 'тюмень', 'ижевск', 'саратов', 'тольятти', 'барнаул', 'ульяновск', 'иркутск', 'хабаровск', 'ярославль', 'владивосток', 'махачкала', 'томск', 'кемерово', 'калининград', 'тула', 'сургут'];
-function expandGeoLocal(geoCity, geoTerms) {
-  let cities = (Array.isArray(geoTerms) && geoTerms.length) ? geoTerms.slice() : String(geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2);
-  const low = String(geoCity || '').toLowerCase();
-  MAJOR_CITIES.forEach(m => { if (low.indexOf(m) >= 0 && !cities.some(c => c.toLowerCase() === m)) cities.push(m); });
-  const seen = new Set();
-  return cities.filter(c => { const k = c.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
-}
 function num(x) { const n = Number(x); return isFinite(n) ? n : 0; }
 function pick(o, keys) { for (const k of keys) if (o && o[k] != null) return o[k]; return undefined; }
 function handleOf(link, title) {
@@ -211,21 +200,22 @@ async function fetchCandidates(input = {}) {
     if (brandKw.length >= 2) phrases.push(brandKw.slice(0, 2).join(' '));
     if (phrases.length) await collect(phrases, 8);
     // local targeting: search the city (+ topic) so local channels surface, ranked first
-    // city + parent city/region: AI-expanded terms plus any major city embedded in the input
-    const cities = (input.geoCity || (input.geoTerms && input.geoTerms.length)) ? expandGeoLocal(input.geoCity, input.geoTerms) : [];
-    if (cities.length) {
-      const topic = brandKw[0] || '';
-      // local channels are named by pattern, not by topic — search those patterns
+    // HYPERLOCAL: a local business (a barbershop in Троицк) needs channels of ITS OWN town —
+    // NOT the parent metro (nobody drives from Moscow to Троицк). Search the town's own
+    // community pabliks by their usual naming patterns; do not broaden to the big city.
+    const places = String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
+    if (places.length) {
       const cityTerms = [];
-      cities.slice(0, 3).forEach((c, i) => {
-        cityTerms.push('афиша ' + c);
+      places.forEach(c => {
         cityTerms.push('подслушано ' + c);
+        cityTerms.push('типичный ' + c);
+        cityTerms.push('инцидент ' + c);
         cityTerms.push(c + ' онлайн');
-        if (i === 0 && topic) cityTerms.push(c + ' ' + topic);
+        cityTerms.push('афиша ' + c);
         cityTerms.push(c);
       });
       const before = real.length;
-      await collect(cityTerms, 20, 4);
+      await collect(cityTerms, 24, 4);
       for (let k = before; k < real.length; k++) real[k].__geoLocal = true;   // mark local finds
     }
     await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
@@ -306,7 +296,13 @@ async function fetchCandidates(input = {}) {
     });
     // drop direct-competitor shops, as long as enough clean channels remain
     const clean = out.filter(c => !c.competitor);
-    const finalOut = (clean.length >= 3 ? clean : out).sort((a, b) => b.match - a.match);
+    let finalOut = (clean.length >= 3 ? clean : out);
+    // hyperlocal: when a specific city is set, keep ONLY its own local channels — an empty
+    // result is honest (a tiny town may simply have no channels) rather than showing the metro
+    if (String(input.geoCity || '').trim()) {
+      finalOut = finalOut.filter(c => c.geoLocal);
+    }
+    finalOut = finalOut.sort((a, b) => b.match - a.match);
     return finalOut.length ? finalOut : null;
   } catch (e) {
     if (process.env.ACCESS_LOG === '1') console.error('[source] telemetr failed:', e.message);
@@ -362,4 +358,4 @@ async function probe(term) {
   return { channels_ru, stats, resolve };
 }
 
-module.exports = { enabled, fetchCandidates, termOf, topicOf, probe, keywordsFor, expandGeoLocal };
+module.exports = { enabled, fetchCandidates, termOf, topicOf, probe, keywordsFor };

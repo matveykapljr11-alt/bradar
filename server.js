@@ -249,12 +249,8 @@ async function handler(req, res) {
             }
           }
         } catch (e) {}
-        // small towns / districts (e.g. Троицк) have no channels of their own → expand the
-        // city into parent city/region terms so local targeting still finds channels
-        let geoTerms = null;
-        try { if (b.geoCity && ai.enabled()) geoTerms = await ai.geoExpand(b.geoCity); } catch (e) {}
         let candidates = null;
-        try { candidates = await source.fetchCandidates(Object.assign({}, b, { searchTerms, geoTerms })); } catch (e) {}
+        try { candidates = await source.fetchCandidates(Object.assign({}, b, { searchTerms })); } catch (e) {}
         let plan = engine.buildPlan(Object.assign({}, b, { candidates }));
         plan = await ai.enrich(b, plan);
         return send(res, 200, plan);

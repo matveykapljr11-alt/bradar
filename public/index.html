@@ -1053,8 +1053,8 @@ function planEmptyState(){
            <div style="font:700 15px Manrope;color:var(--navy);margin-bottom:6px">Ищем реальные каналы</div>
            <p class="hint">Анализируем Telegram-каналы по вашему описанию и проверяем аудиторию на накрутку. Обычно занимает несколько секунд.</p>`
         : `<div style="font-size:30px;margin-bottom:8px">🔍</div>
-           <div style="font:700 15px Manrope;color:var(--navy);margin-bottom:6px">Не нашли подходящих каналов</div>
-           <p class="hint" style="margin-bottom:16px">По этому описанию в Telegram слишком мало релевантных каналов. Уточните нишу или опишите бренд подробнее — и попробуйте ещё раз.</p>
+           <div style="font:700 15px Manrope;color:var(--navy);margin-bottom:6px">${String(S.brief.geoCity||'').trim()?'Мало локальных каналов':'Не нашли подходящих каналов'}</div>
+           <p class="hint" style="margin-bottom:16px">${String(S.brief.geoCity||'').trim()?'В «'+esc(S.brief.geoCity)+'» слишком мало Telegram-каналов для рекламы. Попробуйте соседний район/город, укажите более крупный город или уберите город.':'По этому описанию в Telegram слишком мало релевантных каналов. Уточните нишу или опишите бренд подробнее — и попробуйте ещё раз.'}</p>
            <button class="cta" data-act="newSearch" style="max-width:240px;margin:0 auto">Новый подбор</button>`}
     </div>
   </div>`+tabbar('plans');
