@@ -246,6 +246,7 @@ async function handler(req, res) {
               if (cls.vertical) b.vertical = cls.vertical;
               if (cls.keywords && cls.keywords.length) searchTerms = cls.keywords;
               if (!b.audience && cls.audience) b.audience = cls.audience;
+              if (cls.city && !String(b.geoCity || '').trim()) b.geoCity = cls.city;   // city typed in the description → local targeting
             }
           }
         } catch (e) {}

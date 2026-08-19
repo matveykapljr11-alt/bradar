@@ -231,10 +231,12 @@ async function fetchCandidates(input = {}) {
       });
       const before = real.length;
       await collect([...new Set(cityTerms)], 30, 4, 800);   // local pabliks are small — lower the subscriber bar
-      // local only if the title actually mentions the town (or its alias) — filters national hits
+      // local only if the title actually mentions the town (or its alias) — filters national hits;
+      // exclude churches / ministries / federal orgs that share the name (Свято-Троицкая Лавра ≠ г. Троицк)
+      const NOT_LOCAL = /лавр|храм|церк|монастыр|епарх|приход|собор|министерств|федеральн|российск|\bроссии\b/;
       for (let k = before; k < real.length; k++) {
         const t = String(pick(real[k], ['title', 'name']) || '').toLowerCase();
-        real[k].__geoLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0);
+        real[k].__geoLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0) && !NOT_LOCAL.test(t);
       }
     }
     await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)

@@ -94,14 +94,15 @@ async function classify(input) {
     'Описание бренда: "' + desc + '"',
     'Выбери ОДНУ наиболее подходящую вертикаль строго из списка (одним словом): ' + VERTICALS,
     'И придумай 4–6 коротких поисковых фраз (по 1–3 слова, на русском) — по ним будем искать Telegram-каналы, где сидит ЦЕЛЕВАЯ АУДИТОРИЯ этого бренда (тематические блоги, обзоры, сообщества, медиа по интересу), а НЕ каналы прямых конкурентов-магазинов того же товара. Фразы отражают интерес аудитории, а не копируют слова из описания.',
-    'Верни JSON: {"vertical":"одно_слово_из_списка","keywords":["фраза","фраза"],"audience":"кратко кто целевая аудитория"}',
+    'Если в описании упомянут ГОРОД или район (например «барбершоп троицк», «салон в казани») — верни его в поле city (только название города, без темы). Если города нет — city пустая строка.',
+    'Верни JSON: {"vertical":"одно_слово_из_списка","keywords":["фраза","фраза"],"audience":"кратко кто целевая аудитория","city":"город или пусто"}',
   ].join('\n');
   try {
     const out = extractJson(await callLLM(system, user, 320));
     const vlist = VERTICALS.split(',');
     const vertical = vlist.includes(out.vertical) ? out.vertical : null;
     const keywords = Array.isArray(out.keywords) ? out.keywords.filter(x => typeof x === 'string' && x.trim().length >= 2).map(x => x.trim()).slice(0, 6) : [];
-    return { vertical, keywords, audience: typeof out.audience === 'string' ? out.audience : '' };
+    return { vertical, keywords, audience: typeof out.audience === 'string' ? out.audience : '', city: typeof out.city === 'string' ? out.city.trim() : '' };
   } catch (e) { return null; }
 }
 
