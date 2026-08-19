@@ -206,9 +206,18 @@ async function fetchCandidates(input = {}) {
       : String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
     if (cities.length) {
       const topic = brandKw[0] || '';
+      // local channels are named by pattern, not by topic — search those patterns
       const cityTerms = [];
-      cities.forEach(c => { if (topic) cityTerms.push(c + ' ' + topic); cityTerms.push(c); });
-      await collect(cityTerms, 16, 5);
+      cities.slice(0, 3).forEach((c, i) => {
+        cityTerms.push('афиша ' + c);
+        cityTerms.push('подслушано ' + c);
+        cityTerms.push(c + ' онлайн');
+        if (i === 0 && topic) cityTerms.push(c + ' ' + topic);
+        cityTerms.push(c);
+      });
+      const before = real.length;
+      await collect(cityTerms, 20, 4);
+      for (let k = before; k < real.length; k++) real[k].__geoLocal = true;   // mark local finds
     }
     await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
     if (real.length < 3) await collect(base, 10);  // vertical terms only if the brand yielded almost nothing
@@ -251,11 +260,12 @@ async function fetchCandidates(input = {}) {
         handle: '',                                    // free tier exposes no @username
         link: iid ? 'https://telemetr.io/channels/' + iid : '',
         cat: 'Telegram-канал', topic,
-        subs, match: Math.max(60, Math.min(86, base)), cpm, reach,
+        subs, match: Math.min(93, Math.max(60, Math.min(86, base)) + (r.__geoLocal ? 12 : 0)), cpm, reach,
+        geoLocal: !!r.__geoLocal,
         eng: err ? (Math.round(err * 10) / 10).toString().replace('.', ',') + '%' : '',
         adShare: '',
         w: reach || subs || 10000, verified: !!pick(r, ['verified', 'is_verified']),
-        risks: [], why: [], verdict: 'Подходит', verdictSub: '',
+        risks: [], why: r.__geoLocal ? ['Локальный канал вашего города — прямой выход на местную аудиторию'] : [], verdict: 'Подходит', verdictSub: r.__geoLocal ? 'Локальная аудитория' : '',
         vColor: 'var(--teal)', vBg: '#F4FAF9', av: avOf(title),
         placement: { price: 0, clicks: '' },
         real: true,
