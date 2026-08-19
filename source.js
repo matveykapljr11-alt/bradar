@@ -44,6 +44,20 @@ function looksLikeSeller(name) {
   const t = String(name || '').toLowerCase();
   return /магазин|интернет-?магазин|шоурум|бутик|маркетплейс|аутлет|outlet|\bshop\b|\bstore\b|official|официальный магазин|wildberries|вайлдберриз|\bozon\b|распродаж/.test(t);
 }
+// common city aliases/abbreviations so channels are found however the town is written
+const CITY_ALIASES = {
+  'москва': ['мск'], 'мск': ['москва'],
+  'санкт-петербург': ['спб', 'питер', 'петербург'], 'спб': ['санкт-петербург', 'питер', 'петербург'], 'питер': ['санкт-петербург', 'спб', 'петербург'], 'петербург': ['санкт-петербург', 'спб', 'питер'],
+  'екатеринбург': ['екб'], 'екб': ['екатеринбург'],
+  'нижний новгород': ['нижний', 'нн'], 'новосибирск': ['новосиб', 'нск'],
+  'ростов-на-дону': ['ростов'], 'ростов': ['ростов-на-дону'],
+  'краснодар': ['крд'], 'челябинск': ['челяба'], 'владивосток': ['владик'],
+  'калининград': ['кёниг', 'кениг'], 'нижний тагил': ['тагил'], 'улан-удэ': ['улан удэ'],
+};
+function cityVariants(place) {
+  const p = String(place || '').trim().toLowerCase();
+  return [place, ...(CITY_ALIASES[p] || [])];
+}
 function num(x) { const n = Number(x); return isFinite(n) ? n : 0; }
 function pick(o, keys) { for (const k of keys) if (o && o[k] != null) return o[k]; return undefined; }
 function handleOf(link, title) {
@@ -206,28 +220,21 @@ async function fetchCandidates(input = {}) {
     // community pabliks by their usual naming patterns; do not broaden to the big city.
     const places = String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
     if (places.length) {
-      const cityTerms = [];
       // any local channel of the town — news, chats, community pabliks — that's where the local
       // audience is; the business topic matters far less than being in the right town.
-      places.forEach(c => {
-        cityTerms.push(c);                    // bare — "Троицк Новости", "Мой Троицк", "Троицк 24" …
-        cityTerms.push('подслушано ' + c);
-        cityTerms.push('новости ' + c);
-        cityTerms.push(c + ' новости');
-        cityTerms.push(c + ' онлайн');
-        cityTerms.push('типичный ' + c);
-        cityTerms.push('инцидент ' + c);
-        cityTerms.push('афиша ' + c);
-        cityTerms.push('чат ' + c);
+      const cityTerms = [];
+      const titleWords = [];                 // for the geoLocal title check (incl. aliases)
+      places.slice(0, 2).forEach(c => {
+        cityVariants(c).forEach(v => titleWords.push(v.toLowerCase()));
+        cityTerms.push(c, 'подслушано ' + c, 'новости ' + c, c + ' новости', c + ' онлайн', 'типичный ' + c, 'инцидент ' + c, 'афиша ' + c, 'чат ' + c);
+        (CITY_ALIASES[c.toLowerCase()] || []).slice(0, 2).forEach(a => cityTerms.push(a, 'подслушано ' + a));
       });
       const before = real.length;
-      await collect(cityTerms, 30, 4, 800);          // local pabliks are small — lower the subscriber bar
-      // a channel is local only if its title actually mentions the town — this filters out
-      // national channels that a loose term (e.g. «новости») might have pulled in
-      const low = places.map(p => p.toLowerCase());
+      await collect([...new Set(cityTerms)], 30, 4, 800);   // local pabliks are small — lower the subscriber bar
+      // local only if the title actually mentions the town (or its alias) — filters national hits
       for (let k = before; k < real.length; k++) {
         const t = String(pick(real[k], ['title', 'name']) || '').toLowerCase();
-        real[k].__geoLocal = low.some(p => p.length >= 3 && t.indexOf(p) >= 0);
+        real[k].__geoLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0);
       }
     }
     await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
