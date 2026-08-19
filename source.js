@@ -207,17 +207,28 @@ async function fetchCandidates(input = {}) {
     const places = String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
     if (places.length) {
       const cityTerms = [];
+      // any local channel of the town — news, chats, community pabliks — that's where the local
+      // audience is; the business topic matters far less than being in the right town.
       places.forEach(c => {
+        cityTerms.push(c);                    // bare — "Троицк Новости", "Мой Троицк", "Троицк 24" …
         cityTerms.push('подслушано ' + c);
+        cityTerms.push('новости ' + c);
+        cityTerms.push(c + ' новости');
+        cityTerms.push(c + ' онлайн');
         cityTerms.push('типичный ' + c);
         cityTerms.push('инцидент ' + c);
-        cityTerms.push(c + ' онлайн');
         cityTerms.push('афиша ' + c);
-        cityTerms.push(c);
+        cityTerms.push('чат ' + c);
       });
       const before = real.length;
-      await collect(cityTerms, 24, 4, 800);          // local pabliks are small — lower the subscriber bar
-      for (let k = before; k < real.length; k++) real[k].__geoLocal = true;   // mark local finds
+      await collect(cityTerms, 30, 4, 800);          // local pabliks are small — lower the subscriber bar
+      // a channel is local only if its title actually mentions the town — this filters out
+      // national channels that a loose term (e.g. «новости») might have pulled in
+      const low = places.map(p => p.toLowerCase());
+      for (let k = before; k < real.length; k++) {
+        const t = String(pick(real[k], ['title', 'name']) || '').toLowerCase();
+        real[k].__geoLocal = low.some(p => p.length >= 3 && t.indexOf(p) >= 0);
+      }
     }
     await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
     if (real.length < 3) await collect(base, 10);  // vertical terms only if the brand yielded almost nothing
