@@ -200,7 +200,10 @@ async function fetchCandidates(input = {}) {
     if (brandKw.length >= 2) phrases.push(brandKw.slice(0, 2).join(' '));
     if (phrases.length) await collect(phrases, 8);
     // local targeting: search the city (+ topic) so local channels surface, ranked first
-    const cities = String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
+    // use AI-expanded geo terms (city + parent city/region) when available, else the raw input
+    const cities = (Array.isArray(input.geoTerms) && input.geoTerms.length)
+      ? input.geoTerms.slice(0, 6)
+      : String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
     if (cities.length) {
       const topic = brandKw[0] || '';
       const cityTerms = [];

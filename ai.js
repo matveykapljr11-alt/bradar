@@ -105,6 +105,26 @@ async function classify(input) {
   } catch (e) { return null; }
 }
 
+/** Expand a city/district into searchable geo terms — small towns (e.g. Троицк) have no
+ *  channels of their own, so we also target the parent city/region (Новая Москва, Москва,
+ *  Подмосковье). Returns an array of geo phrases, or [] (disabled / error). */
+async function geoExpand(city) {
+  if (!enabled()) return [];
+  const c = String(city || '').slice(0, 120).trim();
+  if (c.length < 2) return [];
+  const system = 'Ты помогаешь искать локальные Telegram-каналы по географии России. Отвечай СТРОГО одним JSON-объектом.';
+  const user = [
+    'Пользователь указал город / район / область: "' + c + '".',
+    'Верни 3–6 гео-фраз для поиска Telegram-каналов, покрывающих эту локацию: сам город/район, его родительский город или округ и регион.',
+    'Пример: "Троицк" → ["Троицк","Новая Москва","Москва","Подмосковье"]. Только реальные географические названия России, без тематики.',
+    'JSON: {"terms":["..."]}',
+  ].join('\n');
+  try {
+    const out = extractJson(await callLLM(system, user, 200));
+    return Array.isArray(out.terms) ? out.terms.filter(x => typeof x === 'string' && x.trim().length >= 2).map(x => x.trim()).slice(0, 6) : [];
+  } catch (e) { return []; }
+}
+
 /** Enrich an engine plan with model-written rationale. Returns the plan (possibly enriched). */
 async function enrich(input, plan) {
   if (!enabled()) return plan;
@@ -132,4 +152,4 @@ async function enrich(input, plan) {
   return plan;
 }
 
-module.exports = { enrich, classify, enabled, provider, model };
+module.exports = { enrich, classify, geoExpand, enabled, provider, model };
