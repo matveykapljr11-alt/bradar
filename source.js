@@ -178,12 +178,13 @@ async function fetchCandidates(input = {}) {
     const seen = new Set();
     let real = [];
     let rank = 0;
-    const collect = async (list, target, perTerm) => {
+    const collect = async (list, target, perTerm, minSubs) => {
+      const min = minSubs || 5000;                    // local channels are small → lower bar for city search
       for (const t of list) {
         const rows = await searchRu(t); let added = 0;
         for (const r of rows) {
           const id = pick(r, ['internal_id', 'id']);
-          if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= 5000 && !looksLikeSeller(pick(r, ['title', 'name']))) {
+          if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= min && !looksLikeSeller(pick(r, ['title', 'name']))) {
             r.__rank = rank; seen.add(id); real.push(r);
             if (perTerm && ++added >= perTerm) break;  // don't let one generic word dominate
           }
@@ -215,7 +216,7 @@ async function fetchCandidates(input = {}) {
         cityTerms.push(c);
       });
       const before = real.length;
-      await collect(cityTerms, 24, 4);
+      await collect(cityTerms, 24, 4, 800);          // local pabliks are small — lower the subscriber bar
       for (let k = before; k < real.length; k++) real[k].__geoLocal = true;   // mark local finds
     }
     await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
