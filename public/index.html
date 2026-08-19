@@ -646,7 +646,7 @@ const S={
   brand:{name:'',desc:'',site:'',channel:'',subs:4210,pdf:'Презентация линейки.pdf'},
   vertical:'beauty',pool:null,
   tags:['уход за кожей','чувствительная кожа','женщины 25–40','маркетплейсы','осознанное потребление'],
-  brief:{goal:'Продажи',geo:'Вся Россия',budget:150000,channels:null,audience:'',
+  brief:{goal:'Продажи',geo:'Вся Россия',geoCity:'',budget:150000,channels:null,audience:'',
     exclude:['Политика','Азартные игры','Контент 18+']},
   plan:{overlap:12,clicks:'2 400–3 100',confidence:'Средняя'},
   channels:CHANNELS.map(c=>Object.assign({},c)),
@@ -885,6 +885,7 @@ SCREENS.brief=function(){
       <div style="display:flex;flex-direction:column;gap:7px">
         ${GEOS.map(g=>`<div class="opt ${b.geo===g?'on':''}" data-geo="${g}"><span class="dot"></span><span class="lbl">${g}</span></div>`).join('')}
       </div>
+      ${b.geo==='Конкретные города'?`<input id="geoCityInput" maxlength="80" value="${esc(b.geoCity||'')}" placeholder="Город или города — напр.: Москва, Казань" style="width:100%;box-sizing:border-box;margin-top:9px;padding:11px 13px;background:#F3F8FF;border:1px dashed #AFC5E4;border-radius:12px;font:600 13px Manrope;color:var(--navy);outline:none"/>`:''}
     </div>
     <div class="card">
       <div style="font:700 13.5px Manrope;color:var(--navy);margin-bottom:11px">Какой рекламный бюджет?</div>
@@ -1934,7 +1935,7 @@ document.addEventListener('click',e=>{
 
   // ----- brief selectors -----
   if(el.hasAttribute('data-goal')){ S.brief.goal=el.getAttribute('data-goal'); refreshBrief(); return; }
-  if(el.hasAttribute('data-geo')){ S.brief.geo=el.getAttribute('data-geo'); refreshBrief(); return; }
+  if(el.hasAttribute('data-geo')){ S.brief.geo=el.getAttribute('data-geo'); if(S.brief.geo!=='Конкретные города')S.brief.geoCity=''; refreshBrief(); return; }
   if(el.hasAttribute('data-budget')){ S.brief.budget=+el.getAttribute('data-budget'); refreshBrief(); return; }
   if(el.hasAttribute('data-channels')){ const v=el.getAttribute('data-channels'); S.brief.channels=(v==='auto'?null:+v); refreshBrief(); return; }
   if(el.hasAttribute('data-aud')){ S.brief._aud=el.getAttribute('data-aud'); if(el.getAttribute('data-aud')==='fix') toast('Опишите аудиторию текстом (демо)'); refreshBrief(); return; }
@@ -2048,6 +2049,7 @@ document.addEventListener('input',e=>{
   }
   if(e.target.id==='audInput'){ S.brief.audience=e.target.value; S.brief._audEdited=true; }
   if(e.target.id==='budgetInput'){ const n=parseInt(String(e.target.value).replace(/\D/g,''),10); S.brief.budget=(isFinite(n)&&n>0)?n:0; }
+  if(e.target.id==='geoCityInput'){ S.brief.geoCity=e.target.value; }
   if(e.target.id==='profDesc'){ S.profile.desc=e.target.value; }
   if(e.target.id==='profAud'){ S.profile.audience=e.target.value; }
   if(e.target.id==='profSite'){ S.profile.site=e.target.value; }

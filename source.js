@@ -199,6 +199,14 @@ async function fetchCandidates(input = {}) {
     if (brandKw.length >= 3) phrases.push(brandKw.slice(0, 3).join(' '));
     if (brandKw.length >= 2) phrases.push(brandKw.slice(0, 2).join(' '));
     if (phrases.length) await collect(phrases, 8);
+    // local targeting: search the city (+ topic) so local channels surface, ranked first
+    const cities = String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
+    if (cities.length) {
+      const topic = brandKw[0] || '';
+      const cityTerms = [];
+      cities.forEach(c => { if (topic) cityTerms.push(c + ' ' + topic); cityTerms.push(c); });
+      await collect(cityTerms, 16, 5);
+    }
     await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
     if (real.length < 3) await collect(base, 10);  // vertical terms only if the brand yielded almost nothing
     if (real.length < 3) {
