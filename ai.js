@@ -82,6 +82,8 @@ function buildUserPrompt(input, plan) {
 }
 
 const VERTICALS = 'crypto,beauty,fashion,games,edu,realestate,finance,auto,food,health,fitness,travel,home,kids,pets,marketing,it_dev,jobs,psychology,esoteric,music,cinema,books,science,gifts,electronics,dating,legal,art,ecommerce,logistics,wedding,beauty_serv,crafts,garden,construction,jewelry,anime,outdoor,events,charity,tattoo,b2b,app,generic';
+// bump when the classify prompt changes — invalidates the 30-day cache instantly
+const CLASSIFY_VERSION = 'v3';
 /**
  * Understand a brand by MEANING, not just literal keywords — for vague descriptions
  * where the regex vertical/keywords miss the real niche. Returns {vertical, keywords,
@@ -93,7 +95,7 @@ async function classify(input) {
   if (desc.length < 8) return null;
   // the brand's essence doesn't change → cache the classification 30 days (Grok is the
   // priciest/slowest step; repeat подборы of the same description skip it)
-  const ck = 'cls:' + provider() + ':' + crypto.createHash('md5').update(desc.toLowerCase().replace(/\s+/g, ' ')).digest('hex');
+  const ck = 'cls:' + provider() + ':' + CLASSIFY_VERSION + ':' + crypto.createHash('md5').update(desc.toLowerCase().replace(/\s+/g, ' ')).digest('hex');
   try { const cached = await store.cacheGet(ck); if (cached && typeof cached === 'object') return cached; } catch (e) {}
   const system = 'Ты классифицируешь бренд для подбора рекламных Telegram-каналов. Пойми СМЫСЛ описания, даже если в нём нет прямых ключевых слов и названий ниши. Отвечай СТРОГО одним JSON-объектом, без markdown.';
   const user = [
@@ -126,7 +128,11 @@ async function classify(input) {
     '— «игровые ПК» → геймеры → гейминг, киберспорт, сборки пк',
     '— «доставка здорового питания» → занятые на ПП и худеющие → пп, зож, фитнес',
     'ПРИНЦИП: платит не всегда тот, кто пользуется — ищи именно ПЛАТЕЛЬЩИКА/лицо, принимающее решение (родитель за ребёнка, взрослые дети за пожилых, HR за сотрудников, даритель за получателя, владелец бизнеса за инструмент).',
-    'Придумай 4–6 коротких поисковых фраз (по 1–3 слова, на русском) под каналы ИМЕННО этого покупателя. Фразы отражают его интерес, а не копируют слова из описания.',
+    'Теперь думай как опытный медиабайер по рекламе в Telegram:',
+    '• Реклама лучше заходит в АВТОРСКИХ каналах и живых тематических сообществах (доверие к автору/комьюнити), хуже — в гигантских обезличенных новостниках-агрегаторах и накрученных каналах.',
+    '• Ищи СМЕЖНЫЕ интересы платёжеспособной аудитории, а не только прямую тему: премиум-часы → мужской стиль, авто, бизнес, luxury (там богатые мужчины), а не «магазины часов»; крафтовое пиво → бары, музыка, локальные тусовки; детская онлайн-школа → мамы и семейный досуг.',
+    '• Дай смесь: 2–3 фразы под ядро (прямой интерес покупателя) и 1–2 под смежные интересы, где он тоже проводит время.',
+    'Придумай 4–6 коротких поисковых фраз (по 1–3 слова, на русском) под каналы ИМЕННО этого покупателя. Фразы отражают его интерес и места, где он сидит, а не копируют слова из описания.',
     'Поле audienceType: "b2c" если продукт покупают конечные люди для себя; "b2b" если покупатель — бизнес/владельцы/специалисты.',
     'Если в описании упомянут ГОРОД или район (например «барбершоп троицк») — верни его в поле city (только название, без темы). Если города нет — city пустая строка.',
     'Верни JSON: {"vertical":"одно_слово_из_списка","keywords":["фраза","фраза"],"audience":"кратко кто целевая аудитория","audienceType":"b2c|b2b","city":"город или пусто"}',
