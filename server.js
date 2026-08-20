@@ -239,11 +239,9 @@ async function handler(req, res) {
         // ask the model for the real niche + search phrases so we still find the right channels.
         let searchTerms = null;
         try {
-          // run semantic understanding when the description is short/vague OR looks like a
-          // tool/service FOR a business (where the real buyer isn't the obvious keyword)
-          const b2bSignal = /\bдля\b|\bбот\b|сервис|систем|\bcrm\b|платформ|автоматиз|запис|saas|каталог|управлени|подбор|заявк/i.test(String(b.desc || ''));
-          const weak = !b.vertical || b.vertical === 'generic' || source.keywordsFor(b.desc || '', b.brand || '').length < 3 || b2bSignal;
-          if (weak && ai.enabled()) {
+          // ALWAYS run semantic understanding (who is the real buyer + where they are + city)
+          // — the single most important step for relevance; keyword rules can't infer this.
+          if (ai.enabled() && String(b.desc || '').trim().length >= 5) {
             const cls = await ai.classify(b);
             if (cls) {
               if (cls.vertical) b.vertical = cls.vertical;
