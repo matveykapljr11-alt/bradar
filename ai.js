@@ -11,6 +11,8 @@
  * transparently fall back to the engine plan. Uses global fetch (Node 18+).
  * ========================================================================== */
 
+const crypto = require('crypto');
+const store = require('./store');
 const XAI_KEY = process.env.XAI_API_KEY || process.env.GROK_API_KEY || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 
@@ -89,6 +91,10 @@ async function classify(input) {
   if (!enabled()) return null;
   const desc = String((input && input.desc) || input || '').slice(0, 1200).trim();
   if (desc.length < 8) return null;
+  // the brand's essence doesn't change → cache the classification 30 days (Grok is the
+  // priciest/slowest step; repeat подборы of the same description skip it)
+  const ck = 'cls:' + provider() + ':' + crypto.createHash('md5').update(desc.toLowerCase().replace(/\s+/g, ' ')).digest('hex');
+  try { const cached = await store.cacheGet(ck); if (cached && typeof cached === 'object') return cached; } catch (e) {}
   const system = 'Ты классифицируешь бренд для подбора рекламных Telegram-каналов. Пойми СМЫСЛ описания, даже если в нём нет прямых ключевых слов и названий ниши. Отвечай СТРОГО одним JSON-объектом, без markdown.';
   const user = [
     'Описание бренда: "' + desc + '"',
@@ -130,7 +136,9 @@ async function classify(input) {
     const vlist = VERTICALS.split(',');
     const vertical = vlist.includes(out.vertical) ? out.vertical : null;
     const keywords = Array.isArray(out.keywords) ? out.keywords.filter(x => typeof x === 'string' && x.trim().length >= 2).map(x => x.trim()).slice(0, 6) : [];
-    return { vertical, keywords, audience: typeof out.audience === 'string' ? out.audience : '', audienceType: out.audienceType === 'b2b' ? 'b2b' : 'b2c', city: typeof out.city === 'string' ? out.city.trim() : '' };
+    const result = { vertical, keywords, audience: typeof out.audience === 'string' ? out.audience : '', audienceType: out.audienceType === 'b2b' ? 'b2b' : 'b2c', city: typeof out.city === 'string' ? out.city.trim() : '' };
+    try { await store.cacheSet(ck, result, 30 * 86400); } catch (e) {}
+    return result;
   } catch (e) { return null; }
 }
 
