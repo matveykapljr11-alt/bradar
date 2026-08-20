@@ -289,7 +289,9 @@ async function fetchCandidates(input = {}) {
         vColor: 'var(--teal)', vBg: '#F4FAF9', av: avOf(title),
         placement: { price: 0, clicks: '' },
         real: true,
-        metrics: (realReach || err || postsOf(st)) ? {
+        // always attach metrics for a real channel so it uses the honest realChannelDetail
+        // view (not the seed card with fabricated bars), even when stats are sparse
+        metrics: {
           reach: realReach,
           reach24: num(st.avg_post_views && st.avg_post_views.avg_post_views_24h),
           reach48: num(st.avg_post_views && st.avg_post_views.avg_post_views_48h),
@@ -303,7 +305,7 @@ async function fetchCandidates(input = {}) {
           reactions: num(st.engagement && st.engagement.reactions_avg),
           comments: num(st.engagement && st.engagement.comments_avg),
           forwards: num(st.engagement && st.engagement.forwards_avg),
-        } : null,
+        },
       };
     }).filter(c => c.subs > 0);
     // via TGStat: resolve @username/link + read the last 3 posts → competitor flag AND a

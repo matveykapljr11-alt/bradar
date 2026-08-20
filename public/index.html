@@ -252,6 +252,10 @@ function chUrlLabel(c){ const u=chUname(c); return u.length>=3 ? 't.me/'+u : 'н
 function openUrl(u){ if(!u) return false; try{ if(tg&&/t\.me\//.test(u)&&tg.openTelegramLink){tg.openTelegramLink(u);return true;} }catch(e){} try{ if(tg&&tg.openLink){tg.openLink(u);return true;} }catch(e){} try{ window.open(u,'_blank'); return true; }catch(e){} return false; }
 function openChannelLink(c){ const u=chUrl(c); if(u){ openUrl(u); return; } if(c){ try{ copy(c.name,'Название канала скопировано — найдите его в поиске Telegram'); return; }catch(e){} } toast('Ссылка недоступна'); }
 // placement price: real quoted price when known, otherwise BRADAR's own estimate (labelled)
+// readable channel category — free Telemetr gives no category, so we show a topic label or
+// "Локальный канал", never the raw "Telegram-канал" placeholder
+const TOPIC_LABEL={skincare:'Красота и уход',beauty:'Красота',beauty_serv:'Бьюти-услуги',fashion:'Мода и стиль',games:'Игры',edu:'Образование',realestate:'Недвижимость',finance:'Финансы',auto:'Авто',food:'Еда',health:'Здоровье',fitness:'Фитнес и спорт',travel:'Путешествия',home:'Дом и интерьер',kids:'Дети и родители',pets:'Питомцы',marketing:'Маркетинг',it_dev:'IT и разработка',jobs:'Работа',psychology:'Психология',esoteric:'Эзотерика',music:'Музыка',cinema:'Кино',books:'Книги',science:'Наука',gifts:'Подарки',electronics:'Электроника',dating:'Знакомства',legal:'Юристы',art:'Искусство',ecommerce:'E-commerce',logistics:'Логистика',wedding:'Свадьбы',crafts:'Рукоделие',garden:'Сад и дача',construction:'Строительство',jewelry:'Украшения',anime:'Аниме',outdoor:'Активный отдых',events:'События',charity:'Благотворительность',tattoo:'Тату',b2b:'Бизнес',app:'Технологии',lifestyle:'Lifestyle',wellness:'Велнес',conscious:'Осознанное',news:'Новости',crypto:'Крипта'};
+function catLabel(c){ if(c&&c.geoLocal) return 'Локальный канал'; const l=TOPIC_LABEL[c&&c.topic]; if(l) return l; return (c&&c.cat&&c.cat!=='Telegram-канал')?c.cat:'Тематический канал'; }
 function isRealPrice(c){ return !!(c && c.priceSource==='real' && c.realPrice>0); }
 function priceBlockHtml(c){
   const real=isRealPrice(c); const p=real?c.realPrice:(c.placement&&c.placement.price)||0;
@@ -1141,7 +1145,7 @@ function channelFull(c){
       ${avatar(c)}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:5px"><span style="font:800 14.5px Manrope;color:var(--navy)">${c.name}</span>${c.verified?veriDot():''}</div>
-        <div class="tnum" style="font:500 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${c.cat} · ${fmt(c.subs)} подписчиков</div>
+        <div class="tnum" style="font:500 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${catLabel(c)} · ${fmt(c.subs)} подписчиков</div>
       </div>
       <span class="hbtn" data-open="${c.id}" style="background:var(--chip2);border:none;color:rgba(16,38,74,.6);align-self:flex-start">Открыть ↗</span>
     </div>
@@ -1195,7 +1199,7 @@ function channelCompact(c){
       ${avatar(c,40)}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:5px"><span style="font:800 14px Manrope;color:var(--navy)">${c.name}</span>${c.verified?veriDot(13):''}</div>
-        <div class="tnum" style="font:500 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${c.cat} · ${fmt(c.subs)}</div>
+        <div class="tnum" style="font:500 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${catLabel(c)} · ${fmt(c.subs)}</div>
       </div>
       <div style="text-align:right;flex:none"><div class="tnum" style="font:800 17px Manrope;color:${c.vColor}">${c.match}%</div><div style="font:600 9.5px Manrope;color:rgba(16,38,74,.45)">соответствие</div></div>
     </div>
@@ -1248,7 +1252,7 @@ function channelRiskCard(c){
 function chHead(c){
   return `<div style="display:flex;gap:11px;margin-bottom:14px">${avatar(c)}
     <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:5px"><span style="font:800 14.5px Manrope;color:var(--navy)">${c.name}</span>${c.verified?veriDot():''}</div>
-      <div class="tnum" style="font:500 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${c.cat} · ${fmt(c.subs)} подписчиков</div></div>
+      <div class="tnum" style="font:500 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${catLabel(c)} · ${fmt(c.subs)} подписчиков</div></div>
     <span class="hbtn" data-open-link="${c.id}" style="background:var(--chip2);border:none;color:rgba(16,38,74,.6);align-self:flex-start">Открыть ↗</span></div>`;
 }
 
@@ -1354,7 +1358,7 @@ function realChannelDetail(c){
         ${(m.female||m.male)?dynRow('Женщины / Мужчины',(m.female||0)+'% / '+(m.male||0)+'%','var(--navy)'):''}
         ${m.premium?dynRow('Premium-аудитория',m.premium+'%','var(--navy)'):''}
         ${dynRow('Прирост за 30 дней',growth,(m.growth30>=0)?'var(--teal)':'var(--gold)')}
-        ${dynRow('Тематика',c.cat,'var(--navy)')}
+        ${dynRow('Тематика',catLabel(c),'var(--navy)')}
         ${dynRow('География · язык','Россия · русский','var(--navy)')}
       </div>
     </div>
@@ -1394,9 +1398,9 @@ function channelDetailFull(c){
   <div class="body" style="margin-top:-42px;position:relative;z-index:2;display:flex;flex-direction:column;gap:14px">
     <div class="card lg">
       <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:9px">Общая информация</div>
-      <p style="font:500 12.5px/1.6 Manrope;color:var(--ink);margin-bottom:13px">${esc(c.why&&c.why[0]?c.why[0]:('Профильный канал по теме «'+c.cat+'» с вовлечённой, живой аудиторией.'))}</p>
+      <p style="font:500 12.5px/1.6 Manrope;color:var(--ink);margin-bottom:13px">${esc(c.why&&c.why[0]?c.why[0]:('Канал категории «'+catLabel(c)+'» с вовлечённой, живой аудиторией.'))}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;padding-top:13px;border-top:1px solid var(--line)">
-        ${infoCell('ТЕМАТИКА',c.cat)}${infoCell('ГЕОГРАФИЯ И ЯЗЫК','Россия · русский')}
+        ${infoCell('ТЕМАТИКА',catLabel(c))}${infoCell('ГЕОГРАФИЯ И ЯЗЫК','Россия · русский')}
         ${infoCell('РЕКЛАМА',(c.handle&&c.handle.replace('@','').length>=3)?c.handle.replace('@','')+'_ads':'уточняется',!!(c.handle&&c.handle.replace('@','').length>=3))}<div data-open-link="${c.id}" style="cursor:pointer">${infoCell('КАНАЛ',chUrlLabel(c),true)}</div>
       </div>
     </div>
@@ -1640,7 +1644,7 @@ SCREENS.favorites=function(){
     ${S.favs.length?S.favs.map(c=>`<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:11px">
         ${avatar(c,40)}
-        <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:5px"><span style="font:800 14px Manrope;color:var(--navy)">${c.name}</span>${c.verified?veriDot(13):''}</div><div class="tnum" style="font:500 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${c.cat} · ${fmt(c.subs)}</div></div>
+        <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:5px"><span style="font:800 14px Manrope;color:var(--navy)">${c.name}</span>${c.verified?veriDot(13):''}</div><div class="tnum" style="font:500 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">${catLabel(c)} · ${fmt(c.subs)}</div></div>
         <div style="text-align:right;flex:none;margin-right:6px"><div class="tnum" style="font:800 16px Manrope;color:var(--teal)">${c.match}%</div><div style="font:600 9px Manrope;color:rgba(16,38,74,.45)">соответствие</div></div>
         <span data-unfav="${c.id}" style="font-size:18px;color:#F0A400;flex:none">★</span>
       </div>
@@ -1711,7 +1715,7 @@ SCREENS.planDesktop=function(){
     return `<div style="display:grid;grid-template-columns:2.2fr 1fr .9fr .9fr 1fr 1.1fr;gap:12px;padding:14px 20px;border-bottom:1px solid #E9F0FB;align-items:center;${warn?'background:#FFFCF6':''}">
       <div style="display:flex;align-items:center;gap:10px">${avatar(c,32)}
         <div><div style="display:flex;align-items:center;gap:6px"><span style="font:700 13px Manrope;color:var(--navy)">${c.name}</span>${warn?'<span style="width:14px;height:14px;border-radius:4px;background:#E0A030;color:#fff;font:800 9px Manrope;display:flex;align-items:center;justify-content:center">!</span>':''}</div>
-        <div style="font:500 10.5px Manrope;color:${warn?'#A97416':'rgba(16,38,74,.45)'}">${warn?c.risks.length+' замечания · реклама '+c.adShare:c.cat+' · '+fmt(c.subs)}</div></div></div>
+        <div style="font:500 10.5px Manrope;color:${warn?'#A97416':'rgba(16,38,74,.45)'}">${warn?c.risks.length+' замечания · реклама '+c.adShare:catLabel(c)+' · '+fmt(c.subs)}</div></div></div>
       <div style="display:flex;align-items:center;gap:8px"><span class="tnum" style="font:800 13px Manrope;color:${mColor}">${c.match}%</span><span style="flex:1;height:5px;border-radius:3px;background:#DFE9F8;max-width:60px"><span style="display:block;width:${c.match}%;height:100%;border-radius:3px;background:${mBar}"></span></span></div>
       <span class="tnum" style="font:700 12.5px Manrope;color:var(--navy)">${fmt(c.reach)}</span>
       <span class="tnum" style="font:700 12.5px Manrope;color:${c.cpmBad?'var(--gold)':'var(--navy)'}">${fmt(c.cpm)} ₽</span>
@@ -2065,7 +2069,7 @@ function refreshBrief(){
 function slug(s){return (s||'plan').toLowerCase().replace(/[^a-zа-яё0-9]+/gi,'_').replace(/^_|_$/g,'')||'plan';}
 function planRows(){
   return S.channels.slice().sort((a,b)=>b.match-a.match).map((c,i)=>({
-    n:i+1,name:c.name,link:(chUrl(c)||'').replace('https://',''),cat:c.cat,subs:c.subs,
+    n:i+1,name:c.name,link:(chUrl(c)||'').replace('https://',''),cat:catLabel(c),subs:c.subs,
     match:c.match,cpm:c.cpm,price:c.price,views:Math.round(c.price/c.cpm*1000)}));
 }
 function download(filename,mime,content){
@@ -2093,7 +2097,7 @@ function genCSV(){
   ].map(r=>r.map(q).join(sep));
   S.channels.slice().sort((a,b)=>b.match-a.match).forEach((c,i)=>{
     const qs=auditQuality(c).score;
-    lines.push([i+1,c.name,(chUrl(c)||'').replace('https://',''),c.cat,GNAME[c.group]||'',c.subs,c.match,qs,c.cpm,c.price,Math.round(c.price/c.cpm*1000)].map(q).join(sep));
+    lines.push([i+1,c.name,(chUrl(c)||'').replace('https://',''),catLabel(c),GNAME[c.group]||'',c.subs,c.match,qs,c.cpm,c.price,Math.round(c.price/c.cpm*1000)].map(q).join(sep));
   });
   return lines.join('\n');
 }
@@ -2103,7 +2107,7 @@ function genPrintHTML(){
   const cpc=fmt(Math.round(f.cpcLo))+'–'+fmt(Math.round(f.cpcHi))+' ₽';
   const chs=S.channels.slice().sort((a,b)=>b.match-a.match);
   const rows=chs.map((c,i)=>{const q=auditQuality(c);const qc=q.score>=65?'#0E9AA7':q.score>=50?'#C7902A':'#C0392B';
-    return `<tr><td>${i+1}</td><td><b>${esc(c.name)}</b><br><span class=m>${esc(c.cat)} · ${esc((chUrl(c)||'').replace('https://',''))}</span></td><td>${fmt(c.subs)}</td><td>${fmt(c.reach||Math.round(c.price/c.cpm*1000))}</td><td>${c.match}%</td><td style="color:${qc};font-weight:700">${q.score}</td><td>${fmt(c.cpm)} ₽</td><td><b>${fmt(c.price)} ₽</b></td></tr>`;}).join('');
+    return `<tr><td>${i+1}</td><td><b>${esc(c.name)}</b><br><span class=m>${esc(catLabel(c))} · ${esc((chUrl(c)||'').replace('https://',''))}</span></td><td>${fmt(c.subs)}</td><td>${fmt(c.reach||Math.round(c.price/c.cpm*1000))}</td><td>${c.match}%</td><td style="color:${qc};font-weight:700">${q.score}</td><td>${fmt(c.cpm)} ₽</td><td><b>${fmt(c.price)} ₽</b></td></tr>`;}).join('');
   const rationale=chs.map(c=>{const b={f:FORMAT_BY_TOPIC[c.topic]||'Нативная интеграция',a:ANGLE_BY_VERTICAL[S.vertical]||ANGLE_BY_VERTICAL.generic};
     const why=(c.why||[]).slice(0,3).map(w=>`<li>${esc(w)}</li>`).join('');
     const risks=(c.risks||[]).length?`<div class=risk>⚠ ${(c.risks||[]).map(esc).join(' · ')}</div>`:'';
