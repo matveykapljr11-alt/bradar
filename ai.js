@@ -90,7 +90,7 @@ function buildUserPrompt(input, plan) {
 
 const VERTICALS = 'crypto,beauty,fashion,games,edu,realestate,finance,auto,food,health,fitness,travel,home,kids,pets,marketing,it_dev,jobs,psychology,esoteric,music,cinema,books,science,gifts,electronics,dating,legal,art,ecommerce,logistics,wedding,beauty_serv,crafts,garden,construction,jewelry,anime,outdoor,events,charity,tattoo,b2b,app,generic';
 // bump when the classify prompt changes — invalidates the 30-day cache instantly
-const CLASSIFY_VERSION = 'v4';
+const CLASSIFY_VERSION = 'v5';
 /**
  * Understand a brand by MEANING, not just literal keywords — for vague descriptions
  * where the regex vertical/keywords miss the real niche. Returns {vertical, keywords,
@@ -104,11 +104,16 @@ async function classify(input) {
   // priciest/slowest step; repeat подборы of the same description skip it)
   const ck = 'cls:' + provider() + ':' + CLASSIFY_VERSION + ':' + crypto.createHash('md5').update(desc.toLowerCase().replace(/\s+/g, ' ')).digest('hex');
   try { const cached = await store.cacheGet(ck); if (cached && typeof cached === 'object') return cached; } catch (e) {}
-  const system = 'Ты классифицируешь бренд для подбора рекламных Telegram-каналов. Пойми СМЫСЛ описания, даже если в нём нет прямых ключевых слов и названий ниши. Отвечай СТРОГО одним JSON-объектом, без markdown.';
+  const system = 'Ты — профессиональный медиапланер по рекламе в Telegram с многолетним опытом. Твоя работа — по описанию бренда пройти чёткую цепочку и найти, где искать каналы для рекламы. Отвечай СТРОГО одним JSON-объектом, без markdown.';
   const user = [
     'Описание бренда: "' + desc + '"',
-    'Выбери ОДНУ наиболее подходящую вертикаль строго из списка (одним словом): ' + VERTICALS,
-    'ГЛАВНОЕ — пойми, КОМУ бренд продаёт и кого надо искать для рекламы:',
+    'Пройди как профи ПО ШАГАМ (это твоя линейка рассуждений):',
+    'ШАГ 1. brand — что это за бренд и что именно он продаёт (1 фраза).',
+    'ШАГ 2. buyer — КТО его покупатель = кто реально платит (не всегда тот, кто пользуется). Определи платёжеспособный сегмент.',
+    'ШАГ 3. interests — ГДЕ эта аудитория проводит время в Telegram: её интересы, сообщества, смежные темы (не только прямая тема продукта).',
+    'ШАГ 4. keywords — по каким фразам искать эти каналы (из шага 3).',
+    'Также выбери ОДНУ вертикаль строго из списка (одним словом): ' + VERTICALS,
+    'ГЛАВНОЕ на шаге 2 — пойми, КОМУ бренд продаёт:',
     '• Если это сервис / бот / CRM / инструмент / платформа ДЛЯ бизнеса (например «бот записи для салонов красоты», «CRM для стоматологий») — покупатель это ВЛАДЕЛЬЦЫ этого бизнеса, а не их клиенты. Ищи каналы для владельцев/предпринимателей этой сферы (бьюти-бизнес, владельцы салонов, стоматологи-предприниматели), НЕ каналы для конечных клиентов.',
     '• Если товар/услуга для людей — ищи каналы, где сидят эти люди (по интересу), а не конкурентов.',
     'Изучи, кто покупатель, на примерах (описание → КТО покупатель → какие каналы искать):',
@@ -144,14 +149,15 @@ async function classify(input) {
     'Придумай 4–6 таких коротких фраз (по 1–2 слова) под каналы ИМЕННО этого покупателя — как эти каналы реально называются в Telegram.',
     'Поле audienceType: "b2c" если продукт покупают конечные люди для себя; "b2b" если покупатель — бизнес/владельцы/специалисты.',
     'Если в описании упомянут ГОРОД или район (например «барбершоп троицк») — верни его в поле city (только название, без темы). Если города нет — city пустая строка.',
-    'Верни JSON: {"vertical":"одно_слово_из_списка","keywords":["фраза","фраза"],"audience":"кратко кто целевая аудитория","audienceType":"b2c|b2b","city":"город или пусто"}',
+    'Верни JSON строго по линейке: {"brand":"что за бренд","buyer":"кто платит","interests":["где сидит аудитория"],"vertical":"одно_слово_из_списка","keywords":["фраза 1-2 слова","фраза"],"audienceType":"b2c|b2b","city":"город или пусто"}',
   ].join('\n');
   try {
-    const out = extractJson(await callLLM(system, user, 320));
+    const out = extractJson(await callLLM(system, user, 420));
     const vlist = VERTICALS.split(',');
     const vertical = vlist.includes(out.vertical) ? out.vertical : null;
     const keywords = Array.isArray(out.keywords) ? out.keywords.filter(x => typeof x === 'string' && x.trim().length >= 2).map(x => x.trim()).slice(0, 6) : [];
-    const result = { vertical, keywords, audience: typeof out.audience === 'string' ? out.audience : '', audienceType: out.audienceType === 'b2b' ? 'b2b' : 'b2c', city: typeof out.city === 'string' ? out.city.trim() : '' };
+    const audience = typeof out.buyer === 'string' && out.buyer.trim() ? out.buyer.trim() : (typeof out.audience === 'string' ? out.audience : '');
+    const result = { vertical, keywords, audience, audienceType: out.audienceType === 'b2b' ? 'b2b' : 'b2c', city: typeof out.city === 'string' ? out.city.trim() : '' };
     try { await store.cacheSet(ck, result, 30 * 86400); } catch (e) {}
     return result;
   } catch (e) { return null; }
