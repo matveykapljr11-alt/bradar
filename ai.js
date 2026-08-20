@@ -90,7 +90,7 @@ function buildUserPrompt(input, plan) {
 
 const VERTICALS = 'crypto,beauty,fashion,games,edu,realestate,finance,auto,food,health,fitness,travel,home,kids,pets,marketing,it_dev,jobs,psychology,esoteric,music,cinema,books,science,gifts,electronics,dating,legal,art,ecommerce,logistics,wedding,beauty_serv,crafts,garden,construction,jewelry,anime,outdoor,events,charity,tattoo,b2b,app,generic';
 // bump when the classify prompt changes — invalidates the 30-day cache instantly
-const CLASSIFY_VERSION = 'v3';
+const CLASSIFY_VERSION = 'v4';
 /**
  * Understand a brand by MEANING, not just literal keywords — for vague descriptions
  * where the regex vertical/keywords miss the real niche. Returns {vertical, keywords,
@@ -139,7 +139,9 @@ async function classify(input) {
     '• Реклама лучше заходит в АВТОРСКИХ каналах и живых тематических сообществах (доверие к автору/комьюнити), хуже — в гигантских обезличенных новостниках-агрегаторах и накрученных каналах.',
     '• Ищи СМЕЖНЫЕ интересы платёжеспособной аудитории, а не только прямую тему: премиум-часы → мужской стиль, авто, бизнес, luxury (там богатые мужчины), а не «магазины часов»; крафтовое пиво → бары, музыка, локальные тусовки; детская онлайн-школа → мамы и семейный досуг.',
     '• Дай смесь: 2–3 фразы под ядро (прямой интерес покупателя) и 1–2 под смежные интересы, где он тоже проводит время.',
-    'Придумай 4–6 коротких поисковых фраз (по 1–3 слова, на русском) под каналы ИМЕННО этого покупателя. Фразы отражают его интерес и места, где он сидит, а не копируют слова из описания.',
+    'КРИТИЧНО про фразы: мы ищем по ним каналы по НАЗВАНИЮ в Telegram. Поэтому фразы должны быть такими, как реально НАЗЫВАЮТ каналы и ниши (1–2 слова, конкретно), а не абстрактным описанием аудитории.',
+    '  Плохо: «платёжеспособные мужчины 30+», «занятые предприниматели», «люди, которым важен уход». Хорошо: «мужской стиль», «барбершоп», «streetwear», «бизнес молодость», «маркетинг», «нутрициология», «мамы москвы».',
+    'Придумай 4–6 таких коротких фраз (по 1–2 слова) под каналы ИМЕННО этого покупателя — как эти каналы реально называются в Telegram.',
     'Поле audienceType: "b2c" если продукт покупают конечные люди для себя; "b2b" если покупатель — бизнес/владельцы/специалисты.',
     'Если в описании упомянут ГОРОД или район (например «барбершоп троицк») — верни его в поле city (только название, без темы). Если города нет — city пустая строка.',
     'Верни JSON: {"vertical":"одно_слово_из_списка","keywords":["фраза","фраза"],"audience":"кратко кто целевая аудитория","audienceType":"b2c|b2b","city":"город или пусто"}',

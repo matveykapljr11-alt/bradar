@@ -184,10 +184,12 @@ async function fetchCandidates(input = {}) {
   const topic = topicOf(null, vertical);            // free tier: no per-result category
   const cpm = CPM_BY_TOPIC[topic] || 500;
   try {
-    // AI-provided semantic phrases (for vague descriptions) win over literal keyword extraction
+    // AI semantic phrases (who-buys/where) lead, plus the literal distinctive keywords as a
+    // safety net — so both signals search even if one misses
+    const litKw = keywordsFor(input.desc, input.brand);
     const brandKw = (Array.isArray(input.searchTerms) && input.searchTerms.length)
-      ? input.searchTerms.slice(0, 8)
-      : keywordsFor(input.desc, input.brand);
+      ? [...new Set([...input.searchTerms.slice(0, 6), ...litKw.slice(0, 3)])]
+      : litKw;
     const base = VERTICAL_TERMS[vertical] || VERTICAL_TERMS.generic;
     const seen = new Set();
     let real = [];
