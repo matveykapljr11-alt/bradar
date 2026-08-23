@@ -166,8 +166,14 @@ async function classify(input) {
     const vlist = VERTICALS.split(',');
     const vertical = vlist.includes(out.vertical) ? out.vertical : null;
     const keywords = Array.isArray(out.keywords) ? out.keywords.filter(x => typeof x === 'string' && x.trim().length >= 2).map(x => x.trim()).slice(0, 6) : [];
-    const audience = typeof out.buyer === 'string' && out.buyer.trim() ? out.buyer.trim() : (typeof out.audience === 'string' ? out.audience : '');
-    const result = { vertical, keywords, audience, audienceType: out.audienceType === 'b2b' ? 'b2b' : 'b2c', city: typeof out.city === 'string' ? out.city.trim() : '' };
+    const buyer = typeof out.buyer === 'string' ? out.buyer.trim() : '';
+    const interests = Array.isArray(out.interests) ? out.interests.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()).slice(0, 6) : [];
+    const result = {
+      vertical, keywords, audienceType: out.audienceType === 'b2b' ? 'b2b' : 'b2c',
+      city: typeof out.city === 'string' ? out.city.trim() : '',
+      brand: typeof out.brand === 'string' ? out.brand.trim() : '', buyer, interests,
+      audience: buyer || (typeof out.audience === 'string' ? out.audience : ''),
+    };
     try { await store.cacheSet(ck, result, 30 * 86400); } catch (e) {}
     return result;
   } catch (e) { return null; }

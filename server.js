@@ -237,13 +237,14 @@ async function handler(req, res) {
         const b = req.method === 'POST' ? await readBody(req) : Object.fromEntries(url.searchParams);
         // Semantic understanding: when the brand is described vaguely (no direct keywords),
         // ask the model for the real niche + search phrases so we still find the right channels.
-        let searchTerms = null;
+        let searchTerms = null, insight = null;
         try {
           // ALWAYS run semantic understanding (who is the real buyer + where they are + city)
           // — the single most important step for relevance; keyword rules can't infer this.
           if (ai.enabled() && String(b.desc || '').trim().length >= 5) {
             const cls = await ai.classify(b);
             if (cls) {
+              insight = { brand: cls.brand, buyer: cls.buyer, interests: cls.interests, audienceType: cls.audienceType, city: cls.city };
               if (cls.vertical) b.vertical = cls.vertical;
               if (cls.keywords && cls.keywords.length) searchTerms = cls.keywords;
               if (!b.audience && cls.audience) b.audience = cls.audience;
@@ -258,6 +259,7 @@ async function handler(req, res) {
         try { candidates = await source.fetchCandidates(Object.assign({}, b, { searchTerms })); } catch (e) {}
         let plan = engine.buildPlan(Object.assign({}, b, { candidates }));
         plan = await ai.enrich(b, plan);
+        if (insight && (insight.buyer || (insight.interests && insight.interests.length))) plan.insight = insight;
         return send(res, 200, plan);
       }
       if (p === '/api/alternatives' && req.method === 'POST') {
