@@ -291,13 +291,17 @@ async function fetchCandidates(input = {}) {
       }
       if (tr) {
         const cityHits = real.slice(before);
+        let tgProbe = null, tgProbeErr = null;
+        try { const rows = await tgstat.searchCatalog('Троицк', 10); tgProbe = (rows || []).map(x => x.title + ' (@' + x.username + ' · ' + x.subs + ')'); }
+        catch (e) { tgProbeErr = String(e.message || e); }
         tr.push({
           stage: 'city-search', places, titleWords, cityHitCount: cityHits.length,
           cityHitTitles: cityHits.slice(0, 12).map(r => pick(r, ['title', 'name'])),
           geoLocalCount: cityHits.filter(r => r.__geoLocal).length,
           geoLocalTitles: cityHits.filter(r => r.__geoLocal).slice(0, 12).map(r => pick(r, ['title', 'name'])),
-          tgstatCount: cityHits.filter(r => r.__tgstat).length,
+          tgstatEnabled: tgstat.enabled(), tgstatCount: cityHits.filter(r => r.__tgstat).length,
           tgstatTitles: cityHits.filter(r => r.__tgstat).slice(0, 12).map(r => r.title + ' (@' + r.__username + ')'),
+          tgProbe, tgProbeErr,
         });
       }
     }
