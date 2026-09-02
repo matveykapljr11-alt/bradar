@@ -263,6 +263,32 @@ async function fetchCandidates(input = {}) {
       for (let k = real.length - 1; k >= before; k--) {
         if (!real[k].__geoLocal) { seen.delete(pick(real[k], ['internal_id', 'id'])); real.splice(k, 1); }
       }
+      // TGStat's catalog (2.8M channels) is far deeper than Telemetr for SMALL local pabliks —
+      // Telemetr often doesn't track «Подслушано Троицк» at all. Search TGStat for the town's own
+      // channels and add the geoLocal ones as first-class candidates (they carry a real @username).
+      if (tgstat.enabled()) {
+        try {
+          const tgTerms = [];
+          places.slice(0, 2).forEach(c => {
+            tgTerms.push(c, 'подслушано ' + c, 'новости ' + c, 'типичный ' + c, 'афиша ' + c);
+            if (brandKw[0]) tgTerms.push(brandKw[0] + ' ' + c);
+          });
+          const seenU = new Set(real.filter(r => r.__username).map(r => String(r.__username).toLowerCase()));
+          for (const term of [...new Set(tgTerms)]) {
+            if (real.filter(r => r.__tgstat).length >= 12) break;
+            let rows = [];
+            try { rows = await tgstat.searchCatalog(term, 10); } catch (e) { rows = []; }
+            for (const row of rows) {
+              const t = String(row.title || '').toLowerCase();
+              const isLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0) && !NOT_LOCAL.test(t);
+              const u = String(row.username || '').toLowerCase();
+              if (!isLocal || row.subs < 300 || (u && seenU.has(u))) continue;
+              if (u) seenU.add(u);
+              real.push({ title: row.title, name: row.title, members_count: row.subs, __rank: rank++, __geoLocal: true, __tgstat: true, __username: row.username, __link: row.link, __tgId: row.tgId });
+            }
+          }
+        } catch (e) {}
+      }
       if (tr) {
         const cityHits = real.slice(before);
         tr.push({
@@ -270,6 +296,8 @@ async function fetchCandidates(input = {}) {
           cityHitTitles: cityHits.slice(0, 12).map(r => pick(r, ['title', 'name'])),
           geoLocalCount: cityHits.filter(r => r.__geoLocal).length,
           geoLocalTitles: cityHits.filter(r => r.__geoLocal).slice(0, 12).map(r => pick(r, ['title', 'name'])),
+          tgstatCount: cityHits.filter(r => r.__tgstat).length,
+          tgstatTitles: cityHits.filter(r => r.__tgstat).slice(0, 12).map(r => r.title + ' (@' + r.__username + ')'),
         });
       }
     }
@@ -309,8 +337,12 @@ async function fetchCandidates(input = {}) {
     // than a national news feed but is exactly what a local brand needs; always keep it in.
     if (places.length) {
       const inSet = new Set(pairs);
-      allPairs.forEach(p => { if (p.r.__geoLocal && alive(p) && !inSet.has(p)) pairs.push(p); });
+      // keep alive local channels; keep TGStat-sourced local channels even without Telemetr
+      // stats (Telemetr simply doesn't track them — but they're real, from the TGStat catalog).
+      allPairs.forEach(p => { if (p.r.__geoLocal && (alive(p) || p.r.__tgstat) && !inSet.has(p)) pairs.push(p); });
     }
+    // local channels first, then by rank
+    pairs.sort((a, b) => (Number(!!b.r.__geoLocal) - Number(!!a.r.__geoLocal)) || (a.r.__rank - b.r.__rank));
     pairs = pairs.slice(0, 12);
     const out = pairs.map(({ r, st }, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
@@ -321,9 +353,10 @@ async function fetchCandidates(input = {}) {
       const iid = pick(r, ['internal_id', 'id']);
       const base = err ? Math.round(60 + Math.min(err, 8) * 3) : Math.round(58 + Math.log10(Math.max(1000, subs)) * 5);
       return {
-        id: 'tm' + (iid || i), name: title,
-        handle: '',                                    // free tier exposes no @username
-        link: iid ? 'https://telemetr.io/channels/' + iid : '',
+        id: r.__tgstat && r.__username ? 'tg' + r.__username : 'tm' + (iid || i), name: title,
+        handle: r.__username ? '@' + r.__username : '',          // TGStat channels carry a real @username
+        username: r.__username || '', resolved: r.__tgstat ? true : undefined,
+        link: r.__link || (r.__username ? 'https://t.me/' + r.__username : (iid ? 'https://telemetr.io/channels/' + iid : '')),
         cat: 'Telegram-канал', topic,
         subs, match: Math.min(93, Math.max(60, Math.min(86, base)) + (r.__geoLocal ? 12 : 0)), cpm, reach,
         geoLocal: !!r.__geoLocal,
@@ -356,14 +389,17 @@ async function fetchCandidates(input = {}) {
     // via TGStat: resolve @username/link + read the last 3 posts → competitor flag AND a
     // brand-relevance signal (does the channel actually post about the brand's topic?)
     try { await tgstat.enrichLinks(out, brandKw); } catch (e) {}
-    // last posts HELP the match: boost channels that really post on-topic, penalise off-topic
+    // last posts HELP the match: boost channels that really post on-topic, penalise off-topic.
+    // BUT never penalise a geoLocal channel for being off-topic — for a local brand its value is
+    // BEING in the town, not posting about the niche (a town news feed won't post about «походы»).
     out.forEach(c => {
-      if (!c.hasPosts) return;
+      if (!c.hasPosts || c.geoLocal) return;
       if (c.relHits >= 2) c.match = Math.min(94, c.match + 5);
       else if (c.relHits === 0) c.match = Math.max(48, c.match - 10);
     });
-    // drop direct-competitor shops, as long as enough clean channels remain
-    const clean = out.filter(c => !c.competitor);
+    // drop direct-competitor shops, as long as enough clean channels remain (a geoLocal town
+    // channel is never a competitor — keep it even if it runs commerce posts)
+    const clean = out.filter(c => !c.competitor || c.geoLocal);
     let finalOut = (clean.length >= 3 ? clean : out);
     // geo strictness by the brand's REACH MODEL (media-buyer methodology, «Пример — Троицк»):
     // local channels are PREFERRED, but we NEVER dead-end to an empty screen — if the town has

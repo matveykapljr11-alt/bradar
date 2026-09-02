@@ -66,6 +66,31 @@ async function resolveUsername(title, subs) {
   return best;
 }
 
+/** Search TGStat's catalog (2.8M channels — far deeper than Telemetr for small LOCAL pabliks)
+ *  and return normalized rows. Used for city discovery: «Подслушано Троицк» etc. live here even
+ *  when Telemetr doesn't track them. Cached 7 days per term. Returns [] on error / disabled. */
+async function searchCatalog(term, limit) {
+  if (!enabled()) return [];
+  const q = String(term || '').trim();
+  if (q.length < 2) return [];
+  const ck = 'tgsearch:' + norm(q).slice(0, 50) + ':' + (limit || 10);
+  const cached = await cacheGet(ck);
+  if (Array.isArray(cached)) return cached;
+  let items = [];
+  try { items = rowsOf(await api('/channels/search', { q: q.slice(0, 60), peer_type: 'channel', limit: limit || 10 })); }
+  catch (e) { return []; }
+  const out = items.map(it => {
+    const u = String(it.username || '').replace(/^@/, '');
+    return {
+      tgId: it.tg_id || it.id || null, username: u,
+      title: it.title || it.channel_name || '', subs: Number(it.participants_count) || 0,
+      link: u ? 'https://t.me/' + u : (it.link || ''),
+    };
+  }).filter(c => c.title && (c.username || c.tgId));
+  await cacheSet(ck, out, 7 * 86400);
+  return out;
+}
+
 /** Text of a channel's last N posts (for competitor / relevance checks). '' on error.
  *  Cached ~12h: posts rotate, but the channel's NATURE (shop vs content) is stable enough
  *  for classification, and this is what saves most of the TGStat quota on repeat channels. */
@@ -101,10 +126,15 @@ async function enrichLinks(channels, terms) {
   const T = (terms || []).map(s => String(s).toLowerCase()).filter(x => x.length >= 4).map(x => x.slice(0, 5));
   await Promise.all(channels.map(async c => {
     try {
-      const r = await resolveUsername(c.name, c.subs);
-      if (!r) return;
-      c.username = r.username; c.handle = '@' + r.username; c.link = r.link; c.resolved = true;
-      const txt = await recentPostsText(r.username, 3);   // last 3 posts → real content, not just the name
+      // TGStat-sourced local channels already carry a real @username — use it, skip re-resolving.
+      let uname = c.username && c.resolved !== false ? String(c.username).replace(/^@/, '') : '';
+      if (!uname) {
+        const r = await resolveUsername(c.name, c.subs);
+        if (!r) return;
+        c.username = r.username; c.handle = '@' + r.username; c.link = r.link; c.resolved = true;
+        uname = r.username;
+      }
+      const txt = await recentPostsText(uname, 3);   // last 3 posts → real content, not just the name
       if (txt) {
         const low = txt.toLowerCase();
         c.commerce = commerceHits(low);
@@ -117,4 +147,4 @@ async function enrichLinks(channels, terms) {
   return channels;
 }
 
-module.exports = { enabled, resolveUsername, enrichLinks, bestMatch, recentPostsText, commerceHits, isSellerByPosts };
+module.exports = { enabled, resolveUsername, enrichLinks, bestMatch, recentPostsText, commerceHits, isSellerByPosts, searchCatalog };
