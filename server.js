@@ -252,6 +252,9 @@ async function handler(req, res) {
               // local business); for B2B (a tool FOR businesses) the buyer is a professional
               // niche reached nationally, so don't force local general channels.
               if (cls.city && cls.audienceType !== 'b2b' && !String(b.geoCity || '').trim()) b.geoCity = cls.city;
+              // reach model decides how strictly to filter by city (точка у дома → local only;
+              // high_ticket/online → thematic channels stay in play)
+              if (cls.reachModel) b.reachModel = cls.reachModel;
             }
           }
         } catch (e) {}

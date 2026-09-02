@@ -90,7 +90,7 @@ function buildUserPrompt(input, plan) {
 
 const VERTICALS = 'crypto,beauty,fashion,games,edu,realestate,finance,auto,food,health,fitness,travel,home,kids,pets,marketing,it_dev,jobs,psychology,esoteric,music,cinema,books,science,gifts,electronics,dating,legal,art,ecommerce,logistics,wedding,beauty_serv,crafts,garden,construction,jewelry,anime,outdoor,events,charity,tattoo,b2b,app,generic';
 // bump when the classify prompt changes — invalidates the 30-day cache instantly
-const CLASSIFY_VERSION = 'v7';
+const CLASSIFY_VERSION = 'v8';
 /**
  * Understand a brand by MEANING, not just literal keywords — for vague descriptions
  * where the regex vertical/keywords miss the real niche. Returns {vertical, keywords,
@@ -166,7 +166,14 @@ async function classify(input) {
     'Придумай 4–6 таких коротких фраз (по 1–2 слова) из выбранных кластеров — под каналы ИМЕННО этого покупателя, как эти каналы реально называются в Telegram.',
     'Поле audienceType: "b2c" если продукт покупают конечные люди для себя; "b2b" если покупатель — бизнес/владельцы/специалисты.',
     'Если в описании упомянут ГОРОД или район (например «барбершоп троицк») — верни его в поле city (только название, без темы). Если города нет — city пустая строка.',
-    'Верни JSON строго по линейке: {"brand":"что за бренд","buyer":"кто платит","interests":["где сидит аудитория"],"vertical":"одно_слово_из_списка","keywords":["фраза 1-2 слова","фраза"],"audienceType":"b2c|b2b","city":"город или пусто"}',
+    'Определи МОДЕЛЬ ОХВАТА (reachModel) — она решает, насколько жёстко привязываться к городу:',
+    '• "local_point" — точка у дома / локальная услуга (барбершоп, кафе, салон, маникюр): нужны каналы ИМЕННО этого города/района, общегородские каналы мегаполиса не подходят.',
+    '• "delivery" — доставка/выезд в пределах района: каналы города и соседних ЖК зоны доставки.',
+    '• "area" — работа по округу / нескольким районам: локальные + тематические каналы этого округа.',
+    '• "high_ticket" — высокий чек, за которым готовы ехать (клиника, стоматология-импланты, авто, недвижимость): можно и тематические каналы большого города, если аудитория точная.',
+    '• "online" — онлайн-продукт / доставка по стране / нет города: география вторична, ищем по аудитории и теме; адрес бренда НЕ ограничивает поиск.',
+    'Правило: нет города или продукт национальный/онлайн → "online". Указан город и это офлайн-точка/услуга → "local_point". Дорогая услуга с поездкой → "high_ticket".',
+    'Верни JSON строго по линейке: {"brand":"что за бренд","buyer":"кто платит","interests":["где сидит аудитория"],"vertical":"одно_слово_из_списка","keywords":["фраза 1-2 слова","фраза"],"audienceType":"b2c|b2b","city":"город или пусто","reachModel":"local_point|delivery|area|high_ticket|online"}',
   ].join('\n');
   try {
     const out = extractJson(await callLLM(system, user, 420));
@@ -175,9 +182,11 @@ async function classify(input) {
     const keywords = Array.isArray(out.keywords) ? out.keywords.filter(x => typeof x === 'string' && x.trim().length >= 2).map(x => x.trim()).slice(0, 6) : [];
     const buyer = typeof out.buyer === 'string' ? out.buyer.trim() : '';
     const interests = Array.isArray(out.interests) ? out.interests.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()).slice(0, 6) : [];
+    const RMODELS = ['local_point', 'delivery', 'area', 'high_ticket', 'online'];
     const result = {
       vertical, keywords, audienceType: out.audienceType === 'b2b' ? 'b2b' : 'b2c',
       city: typeof out.city === 'string' ? out.city.trim() : '',
+      reachModel: RMODELS.includes(out.reachModel) ? out.reachModel : '',
       brand: typeof out.brand === 'string' ? out.brand.trim() : '', buyer, interests,
       audience: buyer || (typeof out.audience === 'string' ? out.audience : ''),
     };

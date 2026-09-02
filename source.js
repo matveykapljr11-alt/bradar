@@ -230,6 +230,10 @@ async function fetchCandidates(input = {}) {
         cityVariants(c).forEach(v => titleWords.push(v.toLowerCase()));
         cityTerms.push(c, 'подслушано ' + c, 'новости ' + c, c + ' новости', c + ' онлайн', 'типичный ' + c, 'инцидент ' + c, 'афиша ' + c, 'чат ' + c);
         (CITY_ALIASES[c.toLowerCase()] || []).slice(0, 2).forEach(a => cityTerms.push(a, 'подслушано ' + a));
+        // «аудитория/категория + гео» angle (query constructor): find local communities of the
+        // actual buyer, e.g. «мамы троицк», «мужской стиль троицк» — geoLocal tagging keeps only
+        // the ones whose title really names the town, so competitor/off-town hits fall away.
+        brandKw.slice(0, 2).forEach(k => cityTerms.push(k + ' ' + c));
       });
       const before = real.length;
       await collect([...new Set(cityTerms)], 30, 4, 800);   // local pabliks are small — lower the subscriber bar
@@ -322,10 +326,22 @@ async function fetchCandidates(input = {}) {
     // drop direct-competitor shops, as long as enough clean channels remain
     const clean = out.filter(c => !c.competitor);
     let finalOut = (clean.length >= 3 ? clean : out);
-    // hyperlocal: when a specific city is set, keep ONLY its own local channels — an empty
-    // result is honest (a tiny town may simply have no channels) rather than showing the metro
+    // geo strictness by the brand's REACH MODEL (media-buyer methodology, «Пример — Троицк»):
+    //   local_point / delivery → keep ONLY the town's own channels; a general metro channel
+    //     doesn't convert for a point-of-home business, and an empty result is honest.
+    //   area → prefer local, top up with thematic only when too few local channels exist.
+    //   high_ticket / online → geo is secondary (people travel / it's national): keep the
+    //     thematic channels too; local ones are already boosted via the match score.
     if (String(input.geoCity || '').trim()) {
-      finalOut = finalOut.filter(c => c.geoLocal);
+      const rm = String(input.reachModel || '').trim();
+      const local = finalOut.filter(c => c.geoLocal);
+      if (rm === 'high_ticket' || rm === 'online') {
+        // geo secondary — keep the full relevant set, local already ranks first
+      } else if (rm === 'area') {
+        finalOut = local.length >= 5 ? local : finalOut;
+      } else {
+        finalOut = local;   // local_point / delivery / unspecified → own-town channels only
+      }
     }
     finalOut = finalOut.sort((a, b) => b.match - a.match);
     return finalOut.length ? finalOut : null;
