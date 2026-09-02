@@ -30,9 +30,10 @@ function model() { const p = provider(); return p === 'groq' ? groqModel() : p =
 
 // OpenAI-compatible chat completions (Groq and xAI share this shape — only base URL + model differ)
 async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxTokens, json) {
-  const body = { model: mdl, max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] };
-  if (json) body.response_format = { type: 'json_object' };   // Groq/xAI JSON mode → guaranteed valid JSON
-  for (let attempt = 0; attempt < 2; attempt++) {
+  let useJson = json;   // may drop strict JSON mode if the provider rejects the generation
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const body = { model: mdl, max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] };
+    if (useJson) body.response_format = { type: 'json_object' };
     const res = await fetch(baseUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
@@ -41,13 +42,14 @@ async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxToken
     });
     if (res.ok) { const data = await res.json(); return (((data.choices || [])[0] || {}).message || {}).content || ''; }
     const txt = (await res.text()).slice(0, 300);
-    // free-tier token-per-minute rate limit → wait the suggested delay once, then retry
-    if (res.status === 429 && attempt === 0) {
+    // free-tier tokens-per-minute rate limit → wait the suggested delay, then retry
+    if (res.status === 429 && attempt < 2) {
       const m = txt.match(/try again in ([\d.]+)s/i);
-      const wait = Math.min(6000, Math.max(1000, Math.round((m ? parseFloat(m[1]) : 3) * 1000) + 300));
-      await new Promise(r => setTimeout(r, wait));
+      await new Promise(r => setTimeout(r, Math.min(6000, Math.max(1000, Math.round((m ? parseFloat(m[1]) : 3) * 1000) + 300))));
       continue;
     }
+    // strict JSON mode can fail validation on some models → retry WITHOUT it; extractJson is tolerant
+    if (res.status === 400 && useJson && /json[_ ]?validate|validate JSON/i.test(txt)) { useJson = false; continue; }
     throw new Error(label + ' ' + res.status + ' ' + txt);
   }
 }
