@@ -13,44 +13,55 @@
 
 const crypto = require('crypto');
 const store = require('./store');
+// Groq (api.groq.com — fast Llama/Mixtral inference) is DIFFERENT from Grok/xAI (api.x.ai).
+// Accept a Groq key under GROQ_API_KEY; the legacy GROK_API_KEY was ambiguous and pointed at xAI.
+const GROQ_KEY = process.env.GROQ_API_KEY || '';
 const XAI_KEY = process.env.XAI_API_KEY || process.env.GROK_API_KEY || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 
-function provider() { if (XAI_KEY) return 'xai'; if (ANTHROPIC_KEY) return 'anthropic'; return null; }
-function enabled() { return !!provider(); }
-function model() {
-  if (provider() === 'xai') return process.env.XAI_MODEL || 'grok-4';
-  if (provider() === 'anthropic') return process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
-  return null;
-}
+// primary provider for cache keys / status; callLLM falls back across providers at runtime, so a
+// dead key (e.g. an xAI team out of credits → 403) transparently uses the next configured one.
+function provider() { if (GROQ_KEY) return 'groq'; if (XAI_KEY) return 'xai'; if (ANTHROPIC_KEY) return 'anthropic'; return null; }
+function enabled() { return !!(GROQ_KEY || XAI_KEY || ANTHROPIC_KEY); }
+function groqModel() { return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; }
+function xaiModel() { return process.env.XAI_MODEL || 'grok-4'; }
+function anthropicModel() { return process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'; }
+function model() { const p = provider(); return p === 'groq' ? groqModel() : p === 'xai' ? xaiModel() : p === 'anthropic' ? anthropicModel() : null; }
 
-async function callXAI(system, user, maxTokens) {
-  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+// OpenAI-compatible chat completions (Groq and xAI share this shape — only base URL + model differ)
+async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxTokens) {
+  const res = await fetch(baseUrl, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + XAI_KEY },
-    body: JSON.stringify({ model: model(), max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
+    body: JSON.stringify({ model: mdl, max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
     signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS) || 12000),
   });
-  if (!res.ok) throw new Error('xai ' + res.status + ' ' + (await res.text()).slice(0, 300));
+  if (!res.ok) throw new Error(label + ' ' + res.status + ' ' + (await res.text()).slice(0, 300));
   const data = await res.json();
   return (((data.choices || [])[0] || {}).message || {}).content || '';
 }
+const callGroq = (s, u, m) => callOpenAICompat('https://api.groq.com/openai/v1/chat/completions', GROQ_KEY, groqModel(), 'groq', s, u, m);
+const callXAI = (s, u, m) => callOpenAICompat('https://api.x.ai/v1/chat/completions', XAI_KEY, xaiModel(), 'xai', s, u, m);
 async function callAnthropic(system, user, maxTokens) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: model(), max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }),
+    body: JSON.stringify({ model: anthropicModel(), max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }),
     signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS) || 12000),
   });
   if (!res.ok) throw new Error('anthropic ' + res.status + ' ' + (await res.text()).slice(0, 300));
   const data = await res.json();
   return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
 }
+// try providers in order of preference; on ANY failure fall through to the next configured one.
+// This is what keeps the product intelligent — the whole "who is the buyer / reachModel" step runs
+// here, and if it fails the search degrades to keyword-only and returns junk (ministries etc.).
 async function callLLM(system, user, maxTokens = 1800) {
-  const p = provider();
-  if (p === 'xai') return callXAI(system, user, maxTokens);
-  if (p === 'anthropic') return callAnthropic(system, user, maxTokens);
-  throw new Error('no AI provider configured');
+  const errs = [];
+  if (GROQ_KEY) { try { return await callGroq(system, user, maxTokens); } catch (e) { errs.push(String(e.message || e)); } }
+  if (XAI_KEY) { try { return await callXAI(system, user, maxTokens); } catch (e) { errs.push(String(e.message || e)); } }
+  if (ANTHROPIC_KEY) { try { return await callAnthropic(system, user, maxTokens); } catch (e) { errs.push(String(e.message || e)); } }
+  throw new Error(errs.length ? errs.join(' | ') : 'no AI provider configured');
 }
 
 function extractJson(text) {
