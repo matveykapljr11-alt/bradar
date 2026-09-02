@@ -276,11 +276,13 @@ async function handler(req, res) {
           }
         } catch (e) {}
         let candidates = null;
-        try { candidates = await source.fetchCandidates(Object.assign({}, b, { searchTerms })); } catch (e) {}
+        const fcInput = Object.assign({}, b, { searchTerms });
+        if (b.debug) fcInput.__trace = [];
+        try { candidates = await source.fetchCandidates(fcInput); } catch (e) { if (b.debug) fcInput.__trace.push({ stage: 'throw', message: String(e.message || e) }); }
         let plan = engine.buildPlan(Object.assign({}, b, { candidates }));
         plan = await ai.enrich(b, plan);
         if (insight && (insight.buyer || (insight.interests && insight.interests.length))) plan.insight = insight;
-        if (b.debug) plan.__clsDebug = b.__clsDebug;
+        if (b.debug) { plan.__clsDebug = b.__clsDebug; plan.__searchTrace = fcInput.__trace; }
         return send(res, 200, plan);
       }
       if (p === '/api/alternatives' && req.method === 'POST') {
