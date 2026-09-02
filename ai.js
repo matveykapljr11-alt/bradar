@@ -29,11 +29,13 @@ function anthropicModel() { return process.env.ANTHROPIC_MODEL || 'claude-sonnet
 function model() { const p = provider(); return p === 'groq' ? groqModel() : p === 'xai' ? xaiModel() : p === 'anthropic' ? anthropicModel() : null; }
 
 // OpenAI-compatible chat completions (Groq and xAI share this shape — only base URL + model differ)
-async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxTokens) {
+async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxTokens, json) {
+  const body = { model: mdl, max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] };
+  if (json) body.response_format = { type: 'json_object' };   // Groq/xAI JSON mode → guaranteed valid JSON
   const res = await fetch(baseUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
-    body: JSON.stringify({ model: mdl, max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS) || 12000),
   });
   if (!res.ok) throw new Error(label + ' ' + res.status + ' ' + (await res.text()).slice(0, 300));
@@ -56,8 +58,8 @@ async function groqPickModel() {
   } catch (e) {}
   return _groqModel || envM || 'llama-3.1-8b-instant';
 }
-const callGroq = async (s, u, m) => callOpenAICompat('https://api.groq.com/openai/v1/chat/completions', GROQ_KEY, await groqPickModel(), 'groq', s, u, m);
-const callXAI = (s, u, m) => callOpenAICompat('https://api.x.ai/v1/chat/completions', XAI_KEY, xaiModel(), 'xai', s, u, m);
+const callGroq = async (s, u, m, json) => callOpenAICompat('https://api.groq.com/openai/v1/chat/completions', GROQ_KEY, await groqPickModel(), 'groq', s, u, m, json);
+const callXAI = (s, u, m, json) => callOpenAICompat('https://api.x.ai/v1/chat/completions', XAI_KEY, xaiModel(), 'xai', s, u, m, json);
 async function callAnthropic(system, user, maxTokens) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -72,18 +74,28 @@ async function callAnthropic(system, user, maxTokens) {
 // try providers in order of preference; on ANY failure fall through to the next configured one.
 // This is what keeps the product intelligent — the whole "who is the buyer / reachModel" step runs
 // here, and if it fails the search degrades to keyword-only and returns junk (ministries etc.).
-async function callLLM(system, user, maxTokens = 1800) {
+async function callLLM(system, user, maxTokens = 1800, json = false) {
   const errs = [];
-  if (GROQ_KEY) { try { return await callGroq(system, user, maxTokens); } catch (e) { errs.push(String(e.message || e)); } }
-  if (XAI_KEY) { try { return await callXAI(system, user, maxTokens); } catch (e) { errs.push(String(e.message || e)); } }
+  if (GROQ_KEY) { try { return await callGroq(system, user, maxTokens, json); } catch (e) { errs.push(String(e.message || e)); } }
+  if (XAI_KEY) { try { return await callXAI(system, user, maxTokens, json); } catch (e) { errs.push(String(e.message || e)); } }
   if (ANTHROPIC_KEY) { try { return await callAnthropic(system, user, maxTokens); } catch (e) { errs.push(String(e.message || e)); } }
   throw new Error(errs.length ? errs.join(' | ') : 'no AI provider configured');
 }
 
+// robust JSON extraction — models (esp. Llama) may wrap in ```json fences, add prose, or leave a
+// trailing comma. Strip fences, take the outermost {...}, and retry after light repairs.
 function extractJson(text) {
-  const m = text.match(/\{[\s\S]*\}/);
+  let t = String(text || '').replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+  const m = t.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('no json in model reply');
-  return JSON.parse(m[0]);
+  let s = m[0];
+  try { return JSON.parse(s); } catch (e) {}
+  // repair trailing commas before } or ]
+  try { return JSON.parse(s.replace(/,\s*([}\]])/g, '$1')); } catch (e) {}
+  // truncated output: close dangling arrays/strings by trimming to the last complete "}"
+  const cut = s.lastIndexOf('}');
+  if (cut > 0) { try { return JSON.parse(s.slice(0, cut + 1).replace(/,\s*([}\]])/g, '$1')); } catch (e) {} }
+  throw new Error('bad json in model reply');
 }
 
 const SYSTEM = `Ты — опытный медиабайер по рекламе в Telegram-каналах. Тебе дают описание бренда, бриф и УЖЕ ОТОБРАННЫЙ движком список каналов с метриками. Не выдумывай новые каналы и не меняй числа.
@@ -203,7 +215,7 @@ async function classify(input) {
     'Верни JSON строго по линейке: {"brand":"что за бренд","buyer":"кто платит","interests":["где сидит аудитория"],"vertical":"одно_слово_из_списка","keywords":["фраза 1-2 слова","фраза"],"audienceType":"b2c|b2b","city":"город или пусто","reachModel":"local_point|delivery|area|high_ticket|online"}',
   ].join('\n');
   try {
-    const out = extractJson(await callLLM(system, user, 420));
+    const out = extractJson(await callLLM(system, user, 700, true));
     const vlist = VERTICALS.split(',');
     const vertical = vlist.includes(out.vertical) ? out.vertical : null;
     const keywords = Array.isArray(out.keywords) ? out.keywords.filter(x => typeof x === 'string' && x.trim().length >= 2).map(x => x.trim()).slice(0, 6) : [];
@@ -246,7 +258,7 @@ async function geoExpand(city) {
 async function enrich(input, plan) {
   if (!enabled()) return plan;
   try {
-    const text = await callLLM(SYSTEM, buildUserPrompt(input, plan), 1800);
+    const text = await callLLM(SYSTEM, buildUserPrompt(input, plan), 3000, true);
     const out = extractJson(text);
     const byId = {};
     (out.channels || []).forEach(c => { byId[c.id] = c; });
