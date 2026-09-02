@@ -147,4 +147,20 @@ async function enrichLinks(channels, terms) {
   return channels;
 }
 
-module.exports = { enabled, resolveUsername, enrichLinks, bestMatch, recentPostsText, commerceHits, isSellerByPosts, searchCatalog };
+// debug: reveal the raw /channels/search response shape so we can fix the mapping
+async function rawSearch(q) {
+  try {
+    const data = await api('/channels/search', { q, peer_type: 'channel', limit: 10 });
+    const resp = data && data.response;
+    return {
+      ok: true, status: data && data.status,
+      topKeys: data ? Object.keys(data) : null,
+      respType: Array.isArray(resp) ? 'array' : typeof resp,
+      respKeys: resp && !Array.isArray(resp) ? Object.keys(resp) : null,
+      rowsOfCount: rowsOf(data).length,
+      sample: JSON.stringify(data).slice(0, 700),
+    };
+  } catch (e) { return { ok: false, err: String(e.message || e) }; }
+}
+
+module.exports = { enabled, resolveUsername, enrichLinks, bestMatch, recentPostsText, commerceHits, isSellerByPosts, searchCatalog, rawSearch };
