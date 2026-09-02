@@ -230,9 +230,12 @@ async function classify(input) {
       audience: buyer || (typeof out.audience === 'string' ? out.audience : ''),
     };
     try { await store.cacheSet(ck, result, 30 * 86400); } catch (e) {}
+    _lastClassifyError = '';
     return result;
-  } catch (e) { return null; }
+  } catch (e) { _lastClassifyError = String((e && e.message) || e); return null; }
 }
+let _lastClassifyError = '';
+function lastClassifyError() { return _lastClassifyError; }
 
 /** Expand a city/district into searchable geo terms — small towns (e.g. Троицк) have no
  *  channels of their own, so we also target the parent city/region (Новая Москва, Москва,
@@ -281,4 +284,4 @@ async function enrich(input, plan) {
   return plan;
 }
 
-module.exports = { enrich, classify, geoExpand, enabled, provider, model };
+module.exports = { enrich, classify, geoExpand, enabled, provider, model, lastClassifyError };

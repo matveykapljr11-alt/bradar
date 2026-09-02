@@ -259,6 +259,7 @@ async function handler(req, res) {
           // — the single most important step for relevance; keyword rules can't infer this.
           if (ai.enabled() && String(b.desc || '').trim().length >= 5) {
             const cls = await ai.classify(b);
+            if (b.debug) { b.__clsDebug = { cls: cls || null, err: ai.lastClassifyError ? ai.lastClassifyError() : '' }; }
             if (cls) {
               insight = { brand: cls.brand, buyer: cls.buyer, interests: cls.interests, audienceType: cls.audienceType, city: cls.city };
               if (cls.vertical) b.vertical = cls.vertical;
@@ -279,6 +280,7 @@ async function handler(req, res) {
         let plan = engine.buildPlan(Object.assign({}, b, { candidates }));
         plan = await ai.enrich(b, plan);
         if (insight && (insight.buyer || (insight.interests && insight.interests.length))) plan.insight = insight;
+        if (b.debug) plan.__clsDebug = b.__clsDebug;
         return send(res, 200, plan);
       }
       if (p === '/api/alternatives' && req.method === 'POST') {
