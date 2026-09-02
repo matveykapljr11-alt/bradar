@@ -178,11 +178,27 @@ async function handler(req, res) {
         try { return send(res, 200, await source.probe(url.searchParams.get('q'))); }
         catch (e) { return send(res, 200, { error: String(e.message || e) }); }
       }
-      const out = { enabled: source.enabled(), count: 0, names: [], error: null };
+      const out = { enabled: source.enabled(), aiEnabled: ai.enabled(), count: 0, names: [], trace: [], error: null };
       try {
-        const c = await source.fetchCandidates({ desc: url.searchParams.get('q') || 'косметика уход кожа', vertical: url.searchParams.get('v') || 'beauty' });
+        const desc = url.searchParams.get('q') || 'косметика уход кожа';
+        const fc = { desc, vertical: url.searchParams.get('v') || 'beauty', __trace: out.trace };
+        if (url.searchParams.get('city')) fc.geoCity = url.searchParams.get('city');
+        if (url.searchParams.get('model')) fc.reachModel = url.searchParams.get('model');
+        if (url.searchParams.get('terms')) fc.searchTerms = url.searchParams.get('terms').split(',').map(s => s.trim()).filter(Boolean);
+        // classify=1 → run the real semantic step first, so the diagnostic mirrors /api/analyze
+        if (url.searchParams.get('classify') && ai.enabled()) {
+          const cls = await ai.classify({ desc });
+          out.classify = cls;
+          if (cls) {
+            if (cls.vertical) fc.vertical = cls.vertical;
+            if (cls.keywords && cls.keywords.length) fc.searchTerms = cls.keywords;
+            if (cls.city && !fc.geoCity) fc.geoCity = cls.city;
+            if (cls.reachModel && !fc.reachModel) fc.reachModel = cls.reachModel;
+          }
+        }
+        const c = await source.fetchCandidates(fc);
         out.count = c ? c.length : 0;
-        out.names = (c || []).slice(0, 6).map(x => x.name + ' (' + x.subs + ')');
+        out.names = (c || []).slice(0, 10).map(x => x.name + ' (' + x.subs + ')' + (x.geoLocal ? ' [LOCAL]' : ''));
       } catch (e) { out.error = String(e.message || e); }
       return send(res, 200, out);
     }

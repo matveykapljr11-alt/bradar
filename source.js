@@ -194,6 +194,9 @@ async function fetchCandidates(input = {}) {
     const seen = new Set();
     let real = [];
     let rank = 0;
+    const tr = input.__trace;   // admin diagnostics: record stage counts + samples when present
+    const trace = (stage, extra) => { if (tr) tr.push(Object.assign({ stage, real: real.length }, extra || {})); };
+    if (tr) tr.push({ stage: 'input', brandKw, geoCity: input.geoCity || '', reachModel: input.reachModel || '' });
     const collect = async (list, target, perTerm, minSubs) => {
       const min = minSubs || 5000;                    // local channels are small → lower bar for city search
       for (const t of list) {
@@ -216,6 +219,7 @@ async function fetchCandidates(input = {}) {
     if (brandKw.length >= 3) phrases.push(brandKw.slice(0, 3).join(' '));
     if (brandKw.length >= 2) phrases.push(brandKw.slice(0, 2).join(' '));
     if (phrases.length) await collect(phrases, 8);
+    trace('after-phrases');
     // local targeting: search the city (+ topic) so local channels surface, ranked first
     // HYPERLOCAL: a local business (a barbershop in Троицк) needs channels of ITS OWN town —
     // NOT the parent metro (nobody drives from Moscow to Троицк). Search the town's own
@@ -253,8 +257,18 @@ async function fetchCandidates(input = {}) {
         const t = String(pick(real[k], ['title', 'name']) || '').toLowerCase();
         real[k].__geoLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0) && !NOT_LOCAL.test(t);
       }
+      if (tr) {
+        const cityHits = real.slice(before);
+        tr.push({
+          stage: 'city-search', places, titleWords, cityHitCount: cityHits.length,
+          cityHitTitles: cityHits.slice(0, 12).map(r => pick(r, ['title', 'name'])),
+          geoLocalCount: cityHits.filter(r => r.__geoLocal).length,
+          geoLocalTitles: cityHits.filter(r => r.__geoLocal).slice(0, 12).map(r => pick(r, ['title', 'name'])),
+        });
+      }
     }
     await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
+    trace('after-brandkw');
     if (real.length < 3) await collect(base, 10);  // vertical terms only if the brand yielded almost nothing
     if (real.length < 3) {
       let plain = [];
@@ -346,25 +360,26 @@ async function fetchCandidates(input = {}) {
     const clean = out.filter(c => !c.competitor);
     let finalOut = (clean.length >= 3 ? clean : out);
     // geo strictness by the brand's REACH MODEL (media-buyer methodology, «Пример — Троицк»):
-    //   local_point / delivery → keep ONLY the town's own channels; a general metro channel
-    //     doesn't convert for a point-of-home business, and an empty result is honest.
-    //   area → prefer local, top up with thematic only when too few local channels exist.
-    //   high_ticket / online → geo is secondary (people travel / it's national): keep the
-    //     thematic channels too; local ones are already boosted via the match score.
+    // local channels are PREFERRED, but we NEVER dead-end to an empty screen — if the town has
+    // few/no channels, relevant thematic/adjacent channels beat a blank result. A truly empty
+    // plan happens only when nothing relevant was found at all (handled by the null return).
     if (String(input.geoCity || '').trim()) {
       const rm = String(input.reachModel || '').trim();
       const local = finalOut.filter(c => c.geoLocal);
-      if (rm === 'high_ticket' || rm === 'online') {
-        // geo secondary — keep the full relevant set, local already ranks first
-      } else if (rm === 'area') {
-        finalOut = local.length >= 5 ? local : finalOut;
-      } else {
-        finalOut = local;   // local_point / delivery / unspecified → own-town channels only
+      const strictLocal = rm !== 'high_ticket' && rm !== 'online';   // point-of-home / area / unset
+      if (strictLocal && local.length >= 2) {
+        // enough of the town's own channels — lead with them (hyperlocal intent). For "area"
+        // (an activity people travel to) top up with thematic when local supply is thin.
+        finalOut = (rm === 'area' && local.length < 5) ? finalOut : local;
       }
+      // else (few/no local, or high_ticket/online): keep the full relevant set — thematic and
+      // adjacent-interest channels are still the right audience, and far better than empty.
     }
-    finalOut = finalOut.sort((a, b) => b.match - a.match);
+    finalOut = finalOut.sort((a, b) => (Number(!!b.geoLocal) - Number(!!a.geoLocal)) || (b.match - a.match));
+    if (tr) tr.push({ stage: 'final', outCount: out.length, finalCount: finalOut.length, geoLocalFinal: finalOut.filter(c => c.geoLocal).length, finalTitles: finalOut.slice(0, 12).map(c => c.name + (c.geoLocal ? ' [LOCAL]' : '')) });
     return finalOut.length ? finalOut : null;
   } catch (e) {
+    if (tr) tr.push({ stage: 'error', message: String(e.message || e) });
     if (process.env.ACCESS_LOG === '1') console.error('[source] telemetr failed:', e.message);
     return null;
   }
