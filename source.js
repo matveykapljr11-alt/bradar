@@ -295,6 +295,14 @@ async function fetchCandidates(input = {}) {
         try { const rows = await tgstat.searchCatalog('Троицк', 10); tgProbe = (rows || []).map(x => x.title + ' (@' + x.username + ' · ' + x.subs + ')'); }
         catch (e) { tgProbeErr = String(e.message || e); }
         try { tgRaw = await tgstat.rawSearch('Троицк'); } catch (e) { tgRaw = { err: String(e.message || e) }; }
+        // does Telemetr itself have local channels? probe with/without the Channel/country filters
+        var tmProbe = {};
+        try {
+          const dump = rows => (rows || []).slice(0, 8).map(r => (pick(r, ['title', 'name']) || '?') + ' · ' + num(pick(r, ['members_count', 'members'])) + ' · ' + (pick(r, ['peer', 'peer_type']) || '?'));
+          tmProbe.filtered = dump(rowsOf(await apiGet('/v1/channels/search', { term: 'подслушано троицк', country: 'russia', peer_type: 'Channel', language: 'ru', limit: 15 })));
+          tmProbe.noFilter = dump(rowsOf(await apiGet('/v1/channels/search', { term: 'подслушано троицк', limit: 15 })));
+          tmProbe.plainCity = dump(rowsOf(await apiGet('/v1/channels/search', { term: 'троицк', limit: 15 })));
+        } catch (e) { tmProbe.err = String(e.message || e); }
         tr.push({
           stage: 'city-search', places, titleWords, cityHitCount: cityHits.length,
           cityHitTitles: cityHits.slice(0, 12).map(r => pick(r, ['title', 'name'])),
@@ -302,7 +310,7 @@ async function fetchCandidates(input = {}) {
           geoLocalTitles: cityHits.filter(r => r.__geoLocal).slice(0, 12).map(r => pick(r, ['title', 'name'])),
           tgstatEnabled: tgstat.enabled(), tgstatCount: cityHits.filter(r => r.__tgstat).length,
           tgstatTitles: cityHits.filter(r => r.__tgstat).slice(0, 12).map(r => r.title + ' (@' + r.__username + ')'),
-          tgProbe, tgProbeErr, tgRaw,
+          tgProbe, tgProbeErr, tgRaw, tmProbe,
         });
       }
     }
