@@ -257,6 +257,12 @@ async function fetchCandidates(input = {}) {
         const t = String(pick(real[k], ['title', 'name']) || '').toLowerCase();
         real[k].__geoLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0) && !NOT_LOCAL.test(t);
       }
+      // a channel pulled in ONLY by the city term but NOT actually local is a name-homonym
+      // («Свято-Троицкая Лавра» in Питер ≠ г. Троицк) — drop it so it can't leak into results.
+      // free its id so a later brand-keyword search can still re-add it on real relevance.
+      for (let k = real.length - 1; k >= before; k--) {
+        if (!real[k].__geoLocal) { seen.delete(pick(real[k], ['internal_id', 'id'])); real.splice(k, 1); }
+      }
       if (tr) {
         const cityHits = real.slice(before);
         tr.push({
@@ -365,15 +371,14 @@ async function fetchCandidates(input = {}) {
     // plan happens only when nothing relevant was found at all (handled by the null return).
     if (String(input.geoCity || '').trim()) {
       const rm = String(input.reachModel || '').trim();
-      const local = finalOut.filter(c => c.geoLocal);
-      const strictLocal = rm !== 'high_ticket' && rm !== 'online';   // point-of-home / area / unset
-      if (strictLocal && local.length >= 2) {
-        // enough of the town's own channels — lead with them (hyperlocal intent). For "area"
-        // (an activity people travel to) top up with thematic when local supply is thin.
-        finalOut = (rm === 'area' && local.length < 5) ? finalOut : local;
+      // high_ticket / online: geo is secondary — national thematic channels are legitimate.
+      // Everything else (local_point / delivery / area / unset) is a LOCAL brand: show ONLY the
+      // town's own channels. National channels (a Far-East fishing feed for a Троицк hiking tour)
+      // are geographically wrong and worse than a short/empty result — we can't geo-restrict a
+      // national topic channel from title search, so we don't pad with them.
+      if (rm !== 'high_ticket' && rm !== 'online') {
+        finalOut = finalOut.filter(c => c.geoLocal);
       }
-      // else (few/no local, or high_ticket/online): keep the full relevant set — thematic and
-      // adjacent-interest channels are still the right audience, and far better than empty.
     }
     finalOut = finalOut.sort((a, b) => (Number(!!b.geoLocal) - Number(!!a.geoLocal)) || (b.match - a.match));
     if (tr) tr.push({ stage: 'final', outCount: out.length, finalCount: finalOut.length, geoLocalFinal: finalOut.filter(c => c.geoLocal).length, finalTitles: finalOut.slice(0, 12).map(c => c.name + (c.geoLocal ? ' [LOCAL]' : '')) });
