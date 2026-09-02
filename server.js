@@ -259,7 +259,7 @@ async function handler(req, res) {
           // — the single most important step for relevance; keyword rules can't infer this.
           if (ai.enabled() && String(b.desc || '').trim().length >= 5) {
             const cls = await ai.classify(b);
-            if (b.debug) { b.__clsDebug = { cls: cls || null, err: ai.lastClassifyError ? ai.lastClassifyError() : '' }; }
+            if (b.debug) { b.__clsDebug = { cls: cls || null, err: ai.lastClassifyError ? ai.lastClassifyError() : '', groqModels: ai.groqModels ? ai.groqModels() : [] }; }
             if (cls) {
               insight = { brand: cls.brand, buyer: cls.buyer, interests: cls.interests, audienceType: cls.audienceType, city: cls.city };
               if (cls.vertical) b.vertical = cls.vertical;

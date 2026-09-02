@@ -56,15 +56,21 @@ async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxToken
 // Groq's model IDs change (llama-3.3-70b-versatile can 404 on some accounts). Self-heal: list the
 // account's actual models once and pick the best text model, honouring GROQ_MODEL if it's valid.
 let _groqModel = null;
+let _groqModels = [];
+function groqModels() { return _groqModels; }
 async function groqPickModel() {
   if (_groqModel) return _groqModel;
   const envM = process.env.GROQ_MODEL || '';
   try {
     const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { authorization: 'Bearer ' + GROQ_KEY }, signal: AbortSignal.timeout(6000) });
     if (r.ok) {
-      const ids = ((await r.json()).data || []).map(m => m.id).filter(id => id && !/whisper|tts|guard|embed|vision|prompt-?guard/i.test(id));
-      const pref = [envM, 'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama3-70b-8192', 'openai/gpt-oss-120b', 'qwen-2.5-32b', 'deepseek-r1-distill-llama-70b', 'llama-3.1-8b-instant', 'llama3-8b-8192'].filter(Boolean);
-      _groqModel = pref.find(p => ids.includes(p)) || ids.find(id => /llama-3\.[13]|70b/i.test(id)) || ids.find(id => /llama/i.test(id)) || ids[0] || null;
+      // exclude audio/guard/embeddings AND reasoning models (gpt-oss / deepseek-r1 / qwen-qwq put
+      // the answer in a reasoning channel → empty/plain content, bad for structured JSON)
+      const ids = ((await r.json()).data || []).map(m => m.id).filter(id => id && !/whisper|tts|guard|embed|vision|prompt-?guard|gpt-oss|deepseek-r1|qwq|reasoning/i.test(id));
+      _groqModels = ids;
+      // prefer reliable instruct models good at JSON
+      const pref = [envM, 'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama3-70b-8192', 'llama-3.1-8b-instant', 'llama3-8b-8192', 'gemma2-9b-it', 'mixtral-8x7b-32768'].filter(Boolean);
+      _groqModel = pref.find(p => ids.includes(p)) || ids.find(id => /llama.*(70b|versatile)/i.test(id)) || ids.find(id => /llama|instruct|-it\b/i.test(id)) || ids[0] || null;
     }
   } catch (e) {}
   return _groqModel || envM || 'llama-3.1-8b-instant';
@@ -253,4 +259,4 @@ async function enrich(input, plan) {
   return plan;
 }
 
-module.exports = { enrich, classify, geoExpand, enabled, provider, model, lastClassifyError };
+module.exports = { enrich, classify, geoExpand, enabled, provider, model, lastClassifyError, groqModels };
