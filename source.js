@@ -412,13 +412,15 @@ async function fetchCandidates(input = {}) {
     // plan happens only when nothing relevant was found at all (handled by the null return).
     if (String(input.geoCity || '').trim()) {
       const rm = String(input.reachModel || '').trim();
-      // high_ticket / online: geo is secondary — national thematic channels are legitimate.
-      // Everything else (local_point / delivery / area / unset) is a LOCAL brand: show ONLY the
-      // town's own channels. National channels (a Far-East fishing feed for a Троицк hiking tour)
-      // are geographically wrong and worse than a short/empty result — we can't geo-restrict a
-      // national topic channel from title search, so we don't pad with them.
-      if (rm !== 'high_ticket' && rm !== 'online') {
-        finalOut = finalOut.filter(c => c.geoLocal);
+      // local_point / delivery: a point-of-home brand (barbershop, corner café) — ONLY its town's
+      // own channels convert. Show local, or nothing (honest). area / high_ticket / online are
+      // interest- or theme-driven (people travel for the activity / it's a considered purchase /
+      // it's online) → thematic channels are legitimate; local ones just rank first.
+      const localOnly = rm === 'local_point' || rm === 'delivery';
+      if (localOnly) {
+        const local = finalOut.filter(c => c.geoLocal);
+        // keep local; only if there are truly none do we leave the relevant set (better than empty)
+        if (local.length) finalOut = local;
       }
     }
     finalOut = finalOut.sort((a, b) => (Number(!!b.geoLocal) - Number(!!a.geoLocal)) || (b.match - a.match));
