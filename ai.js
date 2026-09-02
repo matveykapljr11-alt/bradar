@@ -40,7 +40,23 @@ async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxToken
   const data = await res.json();
   return (((data.choices || [])[0] || {}).message || {}).content || '';
 }
-const callGroq = (s, u, m) => callOpenAICompat('https://api.groq.com/openai/v1/chat/completions', GROQ_KEY, groqModel(), 'groq', s, u, m);
+// Groq's model IDs change (llama-3.3-70b-versatile can 404 on some accounts). Self-heal: list the
+// account's actual models once and pick the best text model, honouring GROQ_MODEL if it's valid.
+let _groqModel = null;
+async function groqPickModel() {
+  if (_groqModel) return _groqModel;
+  const envM = process.env.GROQ_MODEL || '';
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { authorization: 'Bearer ' + GROQ_KEY }, signal: AbortSignal.timeout(6000) });
+    if (r.ok) {
+      const ids = ((await r.json()).data || []).map(m => m.id).filter(id => id && !/whisper|tts|guard|embed|vision|prompt-?guard/i.test(id));
+      const pref = [envM, 'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama3-70b-8192', 'openai/gpt-oss-120b', 'qwen-2.5-32b', 'deepseek-r1-distill-llama-70b', 'llama-3.1-8b-instant', 'llama3-8b-8192'].filter(Boolean);
+      _groqModel = pref.find(p => ids.includes(p)) || ids.find(id => /llama-3\.[13]|70b/i.test(id)) || ids.find(id => /llama/i.test(id)) || ids[0] || null;
+    }
+  } catch (e) {}
+  return _groqModel || envM || 'llama-3.1-8b-instant';
+}
+const callGroq = async (s, u, m) => callOpenAICompat('https://api.groq.com/openai/v1/chat/completions', GROQ_KEY, await groqPickModel(), 'groq', s, u, m);
 const callXAI = (s, u, m) => callOpenAICompat('https://api.x.ai/v1/chat/completions', XAI_KEY, xaiModel(), 'xai', s, u, m);
 async function callAnthropic(system, user, maxTokens) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
