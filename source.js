@@ -220,7 +220,16 @@ async function fetchCandidates(input = {}) {
     // HYPERLOCAL: a local business (a barbershop in Троицк) needs channels of ITS OWN town —
     // NOT the parent metro (nobody drives from Moscow to Троицк). Search the town's own
     // community pabliks by their usual naming patterns; do not broaden to the big city.
-    const places = String(input.geoCity || '').split(/[,;]+/).map(s => s.trim()).filter(x => x.length >= 2).slice(0, 3);
+    // strip metro/region qualifiers so "Троицк Москва" / "Троицк, ТиНАО" → "Троицк"; otherwise the
+    // geoLocal title check looks for the whole phrase and misses «Подслушано Троицк».
+    // token-based (JS \b is ASCII-only and doesn't split Cyrillic words).
+    const METRO_STOP = new Set(['москва', 'москве', 'мск', 'московская', 'подмосковье', 'тинао', 'новомосковский', 'ао', 'область', 'обл', 'обл.', 'район', 'город', 'г', 'г.', 'россия', 'рф', 'мо']);
+    const places = String(input.geoCity || '').split(/[,;]+/)
+      .map(s => {
+        const kept = s.trim().split(/\s+/).filter(w => !METRO_STOP.has(w.toLowerCase().replace(/[.,]$/, ''))).join(' ').trim();
+        return kept.length >= 2 ? kept : s.trim();     // fallback: the place WAS just a metro name → keep it
+      })
+      .filter(x => x.length >= 2).slice(0, 3);
     if (places.length) {
       // any local channel of the town — news, chats, community pabliks — that's where the local
       // audience is; the business topic matters far less than being in the right town.
@@ -256,22 +265,32 @@ async function fetchCandidates(input = {}) {
       }
     }
     if (!real.length) return null;
-    // keep relevance order: distinctive-term finds first, larger channels within a term
-    real.sort((a, b) => (a.__rank - b.__rank) || (num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members']))));
-    real = real.slice(0, 16);
+    // keep relevance order, BUT city channels first — when a city is set the local pabliks are
+    // the whole point; national topic channels (found for "поход/туризм") must not crowd them out
+    // of the top-16 slice before we even fetch their stats.
+    real.sort((a, b) => (Number(!!b.__geoLocal) - Number(!!a.__geoLocal)) || (a.__rank - b.__rank) || (num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members']))));
+    real = real.slice(0, 18);
     // enrich with REAL metrics (reach, posts, ER) from channel/stats — parallel, best-effort
     const stats = await Promise.all(real.map(r => statsFor(pick(r, ['internal_id', 'id']))));
     const reachOf = st => num(st && st.avg_post_views && (st.avg_post_views.avg_post_views != null ? st.avg_post_views.avg_post_views : st.avg_post_views));
     const postsOf = st => num(st && st.messages_count && st.messages_count.last_30_days);
     // drop dead / frozen channels: no posts in 30 days or zero views
-    let pairs = real.map((r, i) => ({ r, st: stats[i] || {} }));
+    const allPairs = real.map((r, i) => ({ r, st: stats[i] || {} }));
+    let pairs = allPairs;
+    const alive = p => postsOf(p.st) >= 1 && reachOf(p.st) > 0;
     const active = pairs.filter(p => postsOf(p.st) >= 2 && reachOf(p.st) > 0);   // healthy
-    const semi = pairs.filter(p => postsOf(p.st) >= 1 && reachOf(p.st) > 0);     // at least posting
+    const semi = pairs.filter(alive);                                           // at least posting
     if (active.length >= 3) pairs = active;
     else if (semi.length >= 3) pairs = semi;
     else if (semi.length) pairs = semi;
     else if (active.length) pairs = active;
     // else: keep all (stats unavailable — can't tell; don't wipe the result)
+    // never let the health cull drop the city's own channels — an alive local pablik posts less
+    // than a national news feed but is exactly what a local brand needs; always keep it in.
+    if (places.length) {
+      const inSet = new Set(pairs);
+      allPairs.forEach(p => { if (p.r.__geoLocal && alive(p) && !inSet.has(p)) pairs.push(p); });
+    }
     pairs = pairs.slice(0, 12);
     const out = pairs.map(({ r, st }, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
