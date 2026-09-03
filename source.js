@@ -214,7 +214,7 @@ async function fetchCandidates(input = {}) {
           const isGroup = pick(r, ['peer', 'peer_type']) === 'Group';
           // a chat is weaker ad inventory than a channel (a post scrolls away vs stays in the feed)
           // → require more members for a group to be worth a pinned placement
-          const need = isGroup ? Math.max(min, 4000) : min;
+          const need = isGroup ? Math.max(min, 3000) : min;
           if (id && !seen.has(id) && (allowGroups || !isGroup) && num(pick(r, ['members_count', 'members'])) >= need && !looksLikeSeller(pick(r, ['title', 'name']))) {
             r.__isGroup = isGroup; r.__rank = rank; seen.add(id); real.push(r);
             if (perTerm && ++added >= perTerm) break;  // don't let one generic word dominate
@@ -451,8 +451,9 @@ async function fetchCandidates(input = {}) {
       const localOnly = rm === 'local_point' || rm === 'delivery' || rm === '';
       if (localOnly) {
         const local = finalOut.filter(c => c.geoLocal);
-        // keep local; only if there are truly none do we leave the relevant set (better than empty)
-        if (local.length) finalOut = local;
+        // enough of the town's own channels → local-only; if the town is thin (small suburb like
+        // Мурино), keep relevant thematic as добор so the plan isn't a lonely single result.
+        if (local.length >= 3) finalOut = local;
       }
     }
     // local channels first, then local chats, then thematic — chats are weaker ad inventory
