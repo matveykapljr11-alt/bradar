@@ -446,7 +446,9 @@ async function fetchCandidates(input = {}) {
       // own channels convert. Show local, or nothing (honest). area / high_ticket / online are
       // interest- or theme-driven (people travel for the activity / it's a considered purchase /
       // it's online) → thematic channels are legitimate; local ones just rank first.
-      const localOnly = rm === 'local_point' || rm === 'delivery';
+      // default (rm empty): a brand typed WITH a city is usually a local point → treat as local.
+      // area / high_ticket / online explicitly opt into thematic channels.
+      const localOnly = rm === 'local_point' || rm === 'delivery' || rm === '';
       if (localOnly) {
         const local = finalOut.filter(c => c.geoLocal);
         // keep local; only if there are truly none do we leave the relevant set (better than empty)

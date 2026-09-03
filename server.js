@@ -281,6 +281,12 @@ async function handler(req, res) {
         try { candidates = await source.fetchCandidates(fcInput); } catch (e) { if (b.debug) fcInput.__trace.push({ stage: 'throw', message: String(e.message || e) }); }
         let plan = engine.buildPlan(Object.assign({}, b, { candidates }));
         plan = await ai.enrich(b, plan);
+        // media-buyer order for a local brand: own-town CHANNELS first, then local CHATS (pin-only),
+        // then thematic — the engine sorts by size, which floats big national channels to the top.
+        if (Array.isArray(plan.channels) && String(b.geoCity || '').trim()) {
+          const grank = c => (c.geoLocal ? (c.chat ? 1 : 2) : 0);
+          plan.channels.sort((a, c) => (grank(c) - grank(a)) || ((c.match || 0) - (a.match || 0)));
+        }
         if (insight && (insight.buyer || (insight.interests && insight.interests.length))) plan.insight = insight;
         if (b.debug) { plan.__clsDebug = b.__clsDebug; plan.__searchTrace = fcInput.__trace; }
         return send(res, 200, plan);
