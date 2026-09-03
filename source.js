@@ -212,8 +212,11 @@ async function fetchCandidates(input = {}) {
         for (const r of rows) {
           const id = pick(r, ['internal_id', 'id']);
           const isGroup = pick(r, ['peer', 'peer_type']) === 'Group';
-          if (id && !seen.has(id) && (allowGroups || !isGroup) && num(pick(r, ['members_count', 'members'])) >= min && !looksLikeSeller(pick(r, ['title', 'name']))) {
-            r.__rank = rank; seen.add(id); real.push(r);
+          // a chat is weaker ad inventory than a channel (a post scrolls away vs stays in the feed)
+          // → require more members for a group to be worth a pinned placement
+          const need = isGroup ? Math.max(min, 4000) : min;
+          if (id && !seen.has(id) && (allowGroups || !isGroup) && num(pick(r, ['members_count', 'members'])) >= need && !looksLikeSeller(pick(r, ['title', 'name']))) {
+            r.__isGroup = isGroup; r.__rank = rank; seen.add(id); real.push(r);
             if (perTerm && ++added >= perTerm) break;  // don't let one generic word dominate
           }
         }
@@ -262,9 +265,14 @@ async function fetchCandidates(input = {}) {
       // local only if the title actually mentions the town (or its alias) — filters national hits;
       // exclude churches / ministries / federal orgs that share the name (Свято-Троицкая Лавра ≠ г. Троицк)
       const NOT_LOCAL = /лавр|храм|церк|монастыр|епарх|приход|собор|министерств|федеральн|российск|\bроссии\b|новотроиц|троицкое|троицк-|донецк|днр|лнр|херсон|запорож/;
+      // cross-regional spam barahol: names that list several cities/countries or carry flag emojis
+      // («КАЛУГА КАЗАХСТАН», «Камышины Муриное Арзамаси … 🇺🇿🇰🇬») — не локальная аудитория
+      const SPAM_GEO = /казахстан|узбекистан|киргиз|таджик|беларус|арзамас|бердск|элист|ноябрьск|новошахтинск/;
+      const flagCount = s => (s.match(/[\u{1F1E6}-\u{1F1FF}]/gu) || []).length;
       for (let k = before; k < real.length; k++) {
         const t = String(pick(real[k], ['title', 'name']) || '').toLowerCase();
-        real[k].__geoLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0) && !NOT_LOCAL.test(t);
+        const spam = flagCount(t) >= 2 || SPAM_GEO.test(t);
+        real[k].__geoLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0) && !NOT_LOCAL.test(t) && !spam;
       }
       // a channel pulled in ONLY by the city term but NOT actually local is a name-homonym
       // («Свято-Троицкая Лавра» in Питер ≠ г. Троицк) — drop it so it can't leak into results.
@@ -338,7 +346,9 @@ async function fetchCandidates(input = {}) {
     // keep relevance order, BUT city channels first — when a city is set the local pabliks are
     // the whole point; national topic channels (found for "поход/туризм") must not crowd them out
     // of the top-16 slice before we even fetch their stats.
-    real.sort((a, b) => (Number(!!b.__geoLocal) - Number(!!a.__geoLocal)) || (a.__rank - b.__rank) || (num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members']))));
+    // order: local channels first, then local chats, then everything else by rank/size
+    const geoRank = r => (r.__geoLocal ? (r.__isGroup ? 1 : 2) : 0);
+    real.sort((a, b) => (geoRank(b) - geoRank(a)) || (a.__rank - b.__rank) || (num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members']))));
     real = real.slice(0, 18);
     // enrich with REAL metrics (reach, posts, ER) from channel/stats — parallel, best-effort
     const stats = await Promise.all(real.map(r => statsFor(pick(r, ['internal_id', 'id']))));
@@ -364,7 +374,7 @@ async function fetchCandidates(input = {}) {
       allPairs.forEach(p => { if (p.r.__geoLocal && (alive(p) || p.r.__tgstat) && !inSet.has(p)) pairs.push(p); });
     }
     // local channels first, then by rank
-    pairs.sort((a, b) => (Number(!!b.r.__geoLocal) - Number(!!a.r.__geoLocal)) || (a.r.__rank - b.r.__rank));
+    pairs.sort((a, b) => (geoRank(b.r) - geoRank(a.r)) || (a.r.__rank - b.r.__rank));
     pairs = pairs.slice(0, 12);
     const out = pairs.map(({ r, st }, i) => {
       const title = pick(r, ['title', 'name']) || 'Канал';
@@ -380,12 +390,15 @@ async function fetchCandidates(input = {}) {
         username: r.__username || '', resolved: r.__tgstat ? true : undefined,
         link: r.__link || (r.__username ? 'https://t.me/' + r.__username : (iid ? 'https://telemetr.io/channels/' + iid : '')),
         cat: 'Telegram-канал', topic,
-        subs, match: Math.min(93, Math.max(60, Math.min(86, base)) + (r.__geoLocal ? 12 : 0)), cpm, reach,
-        geoLocal: !!r.__geoLocal,
+        // a chat ranks a bit below a channel: same-town audience, but a post scrolls away → pin only
+        subs, match: Math.min(93, Math.max(60, Math.min(86, base)) + (r.__geoLocal ? (r.__isGroup ? 6 : 12) : 0)), cpm, reach,
+        geoLocal: !!r.__geoLocal, chat: !!r.__isGroup,
         eng: err ? (Math.round(err * 10) / 10).toString().replace('.', ',') + '%' : '',
         adShare: '',
         w: reach || subs || 10000, verified: !!pick(r, ['verified', 'is_verified']),
-        risks: [], why: r.__geoLocal ? ['Локальный канал вашего города — прямой выход на местную аудиторию'] : [], verdict: 'Подходит', verdictSub: r.__geoLocal ? 'Локальная аудитория' : '',
+        risks: r.__isGroup ? ['Это чат — рекламу видно только в закрепе, пост в ленте не остаётся'] : [],
+        why: r.__geoLocal ? [r.__isGroup ? 'Локальный чат вашего города — размещение в закрепе' : 'Локальный канал вашего города — прямой выход на местную аудиторию'] : [],
+        verdict: 'Подходит', verdictSub: r.__geoLocal ? (r.__isGroup ? 'Локальный чат' : 'Локальная аудитория') : '',
         vColor: 'var(--teal)', vBg: '#F4FAF9', av: avOf(title),
         placement: { price: 0, clicks: '' },
         real: true,
@@ -440,7 +453,9 @@ async function fetchCandidates(input = {}) {
         if (local.length) finalOut = local;
       }
     }
-    finalOut = finalOut.sort((a, b) => (Number(!!b.geoLocal) - Number(!!a.geoLocal)) || (b.match - a.match));
+    // local channels first, then local chats, then thematic — chats are weaker ad inventory
+    const finRank = c => (c.geoLocal ? (c.chat ? 1 : 2) : 0);
+    finalOut = finalOut.sort((a, b) => (finRank(b) - finRank(a)) || (b.match - a.match));
     if (tr) tr.push({ stage: 'final', outCount: out.length, finalCount: finalOut.length, geoLocalFinal: finalOut.filter(c => c.geoLocal).length, finalTitles: finalOut.slice(0, 12).map(c => c.name + (c.geoLocal ? ' [LOCAL]' : '')) });
     return finalOut.length ? finalOut : null;
   } catch (e) {
