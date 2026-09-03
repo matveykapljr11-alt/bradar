@@ -420,7 +420,10 @@ async function fetchCandidates(input = {}) {
           forwards: num(st.engagement && st.engagement.forwards_avg),
         },
       };
-    }).filter(c => c.subs > 0);
+    }).filter(c => c.subs > 0)
+      // ads belong in CHANNELS (a post stays in the feed), not chats (a post scrolls away).
+      // Drop local chats by default — set BRADAR_LOCAL_CHATS=1 to keep them (clearly labeled).
+      .filter(c => process.env.BRADAR_LOCAL_CHATS === '1' || !c.chat);
     // via TGStat: resolve @username/link + read the last 3 posts → competitor flag AND a
     // brand-relevance signal (does the channel actually post about the brand's topic?)
     try { await tgstat.enrichLinks(out, brandKw); } catch (e) {}
