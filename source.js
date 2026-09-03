@@ -10,10 +10,22 @@
  * ========================================================================== */
 
 const tgstat = require('./tgstat');
+const store = require('./store');
 const KEY = process.env.TELEMETR_API_KEY || '';
 const BASE = process.env.TELEMETR_BASE || 'https://api.tlmtr.io';
 
 function enabled() { return !!KEY; }
+// cache search results per term — Telemetr free tier is only 1000 requests/month and each подбор
+// fires ~15-20 searches; terms like «туризм»/«троицк» repeat across brands, so a 24h cache slashes
+// quota use. Only non-empty results are cached (never cache a quota-exhausted empty response).
+const SEARCH_TTL = (Number(process.env.TELEMETR_SEARCH_TTL_H) || 24) * 3600;
+async function cachedSearch(kind, term, fn) {
+  const ck = 'tms:' + kind + ':' + String(term).toLowerCase().replace(/\s+/g, ' ').trim();
+  try { const c = await store.cacheGet(ck); if (Array.isArray(c) && c.length) return c; } catch (e) {}
+  const rows = await fn();
+  if (Array.isArray(rows) && rows.length) { try { await store.cacheSet(ck, rows, SEARCH_TTL); } catch (e) {} }
+  return rows || [];
+}
 
 // estimated CPM (₽ per 1000 views) by topic — rough RU market; tweak freely
 const CPM_BY_TOPIC = { skincare: 560, beauty: 560, fashion: 520, edu: 420, app: 460, b2b: 640, games: 450, realestate: 640, auto: 520, food: 480, health: 520, fitness: 470, travel: 500, home: 500, kids: 480, pets: 470, marketing: 600, it_dev: 620, jobs: 520, psychology: 520, esoteric: 480, music: 460, cinema: 480, books: 440, science: 520, gifts: 500, electronics: 500, dating: 500, legal: 560, art: 480, ecommerce: 560, logistics: 560, wedding: 560, beauty_serv: 540, crafts: 460, garden: 460, construction: 560, jewelry: 560, anime: 440, outdoor: 480, events: 500, charity: 460, tattoo: 480, lifestyle: 500, conscious: 480, wellness: 470, news: 680, finance: 700, crypto: 750 };
@@ -170,18 +182,25 @@ function rowsOf(data) {
  * null if the source is disabled or the call fails (→ engine uses its seed catalog).
  */
 async function searchRu(term) {
-  try { return rowsOf(await apiGet('/v1/channels/search', { term, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 20 })); }
-  catch (e) { return []; }
+  return cachedSearch('ch', term, async () => {
+    try { return rowsOf(await apiGet('/v1/channels/search', { term, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 20 })); }
+    catch (e) { return []; }
+  });
 }
 // unfiltered search (no peer_type/country) — local pabliks are often chats/groups and Telemetr
 // only surfaces them here; used for city discovery so «Троицк Объявления» etc. come through.
 async function searchAny(term) {
-  try { return rowsOf(await apiGet('/v1/channels/search', { term, limit: 20 })); }
-  catch (e) { return []; }
+  return cachedSearch('any', term, async () => {
+    try { return rowsOf(await apiGet('/v1/channels/search', { term, limit: 20 })); }
+    catch (e) { return []; }
+  });
 }
 async function statsFor(id) {
   if (!id) return null;
-  try { return await apiGet('/v1/channel/stats', { internal_id: id }); }
+  // 18 stats calls per подбор — the biggest quota drain; metrics are stable for hours → cache 12h
+  const ck = 'tms:st:' + id;
+  try { const c = await store.cacheGet(ck); if (c && typeof c === 'object') return c; } catch (e) {}
+  try { const st = await apiGet('/v1/channel/stats', { internal_id: id }); if (st) { try { await store.cacheSet(ck, st, (Number(process.env.TELEMETR_STATS_TTL_H) || 12) * 3600); } catch (e) {} } return st; }
   catch (e) { return null; }
 }
 async function fetchCandidates(input = {}) {
