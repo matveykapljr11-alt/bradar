@@ -173,6 +173,12 @@ async function searchRu(term) {
   try { return rowsOf(await apiGet('/v1/channels/search', { term, country: 'russia', peer_type: 'Channel', language: 'ru', limit: 20 })); }
   catch (e) { return []; }
 }
+// unfiltered search (no peer_type/country) — local pabliks are often chats/groups and Telemetr
+// only surfaces them here; used for city discovery so «Троицк Объявления» etc. come through.
+async function searchAny(term) {
+  try { return rowsOf(await apiGet('/v1/channels/search', { term, limit: 20 })); }
+  catch (e) { return []; }
+}
 async function statsFor(id) {
   if (!id) return null;
   try { return await apiGet('/v1/channel/stats', { internal_id: id }); }
@@ -197,13 +203,16 @@ async function fetchCandidates(input = {}) {
     const tr = input.__trace;   // admin diagnostics: record stage counts + samples when present
     const trace = (stage, extra) => { if (tr) tr.push(Object.assign({ stage, real: real.length }, extra || {})); };
     if (tr) tr.push({ stage: 'input', brandKw, geoCity: input.geoCity || '', reachModel: input.reachModel || '' });
-    const collect = async (list, target, perTerm, minSubs) => {
+    const collect = async (list, target, perTerm, minSubs, allowGroups) => {
       const min = minSubs || 5000;                    // local channels are small → lower bar for city search
       for (const t of list) {
-        const rows = await searchRu(t); let added = 0;
+        // local pabliks are usually chats (peer_type Group) → for city search use the UNfiltered
+        // endpoint and keep groups; Telemetr indexes them but the Channel-only filter hides them
+        const rows = allowGroups ? await searchAny(t) : await searchRu(t); let added = 0;
         for (const r of rows) {
           const id = pick(r, ['internal_id', 'id']);
-          if (id && !seen.has(id) && pick(r, ['peer', 'peer_type']) !== 'Group' && num(pick(r, ['members_count', 'members'])) >= min && !looksLikeSeller(pick(r, ['title', 'name']))) {
+          const isGroup = pick(r, ['peer', 'peer_type']) === 'Group';
+          if (id && !seen.has(id) && (allowGroups || !isGroup) && num(pick(r, ['members_count', 'members'])) >= min && !looksLikeSeller(pick(r, ['title', 'name']))) {
             r.__rank = rank; seen.add(id); real.push(r);
             if (perTerm && ++added >= perTerm) break;  // don't let one generic word dominate
           }
@@ -249,10 +258,10 @@ async function fetchCandidates(input = {}) {
         brandKw.slice(0, 2).forEach(k => cityTerms.push(k + ' ' + c));
       });
       const before = real.length;
-      await collect([...new Set(cityTerms)], 30, 4, 800);   // local pabliks are small — lower the subscriber bar
+      await collect([...new Set(cityTerms)], 30, 4, 800, true);   // small local pabliks; allow groups (chats)
       // local only if the title actually mentions the town (or its alias) — filters national hits;
       // exclude churches / ministries / federal orgs that share the name (Свято-Троицкая Лавра ≠ г. Троицк)
-      const NOT_LOCAL = /лавр|храм|церк|монастыр|епарх|приход|собор|министерств|федеральн|российск|\bроссии\b/;
+      const NOT_LOCAL = /лавр|храм|церк|монастыр|епарх|приход|собор|министерств|федеральн|российск|\bроссии\b|новотроиц|троицкое|троицк-|донецк|днр|лнр|херсон|запорож/;
       for (let k = before; k < real.length; k++) {
         const t = String(pick(real[k], ['title', 'name']) || '').toLowerCase();
         real[k].__geoLocal = titleWords.some(p => p.length >= 3 && t.indexOf(p) >= 0) && !NOT_LOCAL.test(t);
