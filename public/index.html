@@ -1332,6 +1332,59 @@ function creativeCard(c){
     </div>
   </div>`;
 }
+// paid layer: the deal kit is unlocked in the offline demo, or for PRO users online.
+function dealUnlocked(){ try{ if(!window.BRADAR||!window.BRADAR.online) return true; return !!(window.BRADAR.isPro&&window.BRADAR.isPro()); }catch(e){ return true; } }
+function dealStars(){ try{ return (window.BRADAR.config.products.pro_export.stars)||150; }catch(e){ return 150; } }
+// outreach message + deal tips: AI-written (S._salesKit) online, built-in template in the demo.
+function outreachFor(c){
+  const raw=(S._salesKit&&S._salesKit.outreach)||('Здравствуйте! Пишу по поводу рекламного размещения в {{канал}}.\nМы — '+(S.brand.name||'бренд')+'. Ищем нативный пост нашей аудитории.\nПодскажите, пожалуйста: стоимость размещения, свободные даты и средний охват поста за последние 24 часа?\nКреатив предоставим с маркировкой ОРД (erid). Спасибо!');
+  return raw.replace(/\{\{\s*канал\s*\}\}/g, c&&c.name?c.name:'ваш канал');
+}
+function dealTipsFor(){
+  const t=(S._salesKit&&S._salesKit.dealTips&&S._salesKit.dealTips.length)?S._salesKit.dealTips:[
+    'Просите статистику охватов за последние посты — не ориентируйтесь только на число подписчиков.',
+    'Торгуйтесь: за пакет из 2–3 выходов цена обычно ниже на 15–20%.',
+    'Оформите маркировку ОРД (erid) до публикации — без неё штраф для рекламодателя.',
+    'После выхода просите скриншот статистики поста и закреп на 24 часа.'];
+  return t;
+}
+function dealKit(c){
+  const uname=chUname(c); const url=(typeof chUrl==='function')?chUrl(c):'';
+  const contact = uname
+    ? `<a href="${url||('https://t.me/'+uname)}" style="font:700 13px Manrope;color:var(--blue);text-decoration:none">@${esc(uname)}</a> <span style="font:500 11px Manrope;color:rgba(16,38,74,.45)">· напишите админам через профиль канала</span>`
+    : `<span style="font:600 12.5px Manrope;color:var(--navy)">${esc(c.name)}</span> <span style="font:500 11px Manrope;color:rgba(16,38,74,.45)">· найдите в поиске Telegram и напишите админам</span>`;
+  if(!dealUnlocked()){
+    return `<div class="card lg" style="border:1.5px solid #D7E7FC;background:var(--soft)">
+      <div class="rowhead"><span class="aibadge" style="width:auto;padding:0 6px;color:var(--blue)">PRO</span><span class="t">Набор для сделки</span></div>
+      <p class="hint" style="margin:6px 0 12px">Контакты канала, ориентир по цене, готовое сообщение админу и советы по сделке — чтобы выйти на размещение сразу, без переговоров с нуля.</p>
+      <div style="filter:blur(4px);pointer-events:none;user-select:none;font:600 12px/1.6 Manrope;color:var(--navy)">@channel_admin · готовое сообщение для запроса размещения…</div>
+      <span class="pbtn accent" data-act="contacts" style="display:block;text-align:center;margin-top:12px">Разблокировать за ${dealStars()} ⭐</span>
+    </div>`;
+  }
+  const tips=dealTipsFor().map(t=>`<li style="margin-bottom:6px">${esc(t)}</li>`).join('');
+  return `<div class="card lg" style="border:1.5px solid #CDE7D8;background:#F3FBF6">
+    <div class="rowhead"><span class="aibadge" style="width:auto;padding:0 6px;background:var(--teal);color:#fff">PRO</span><span class="t">Набор для сделки</span></div>
+    <div style="margin-top:8px">
+      <div style="font:600 11px Manrope;color:rgba(16,38,74,.5);margin-bottom:4px">Контакт для размещения</div>
+      <div>${contact}</div>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font:600 11px Manrope;color:rgba(16,38,74,.5);margin-bottom:4px">Ориентир по цене</div>
+      ${priceBlockHtml(c)}
+    </div>
+    <div style="margin-top:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <span style="font:600 11px Manrope;color:rgba(16,38,74,.5)">Готовое сообщение админу</span>
+        <span class="pbtn" data-act="copyOutreach" style="padding:5px 11px;font-size:11px">Копировать</span>
+      </div>
+      <div style="white-space:pre-wrap;font:500 12.5px/1.6 Manrope;color:var(--navy);background:#fff;border-radius:10px;padding:11px 13px;border:1px solid #E3EEF9">${esc(outreachFor(c))}</div>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font:600 11px Manrope;color:rgba(16,38,74,.5);margin-bottom:5px">Советы по сделке</div>
+      <ul style="margin:0;padding-left:17px;font:500 12px/1.5 Manrope;color:var(--navy)">${tips}</ul>
+    </div>
+  </div>`;
+}
 function realChannelDetail(c){
   const m=c.metrics||{};
   const growth=m.growth30?((m.growth30>0?'+':'')+fmt(m.growth30)):'—';
@@ -1383,6 +1436,7 @@ function realChannelDetail(c){
     <div class="card" style="padding:13px 15px;background:var(--soft)">
       <p style="margin:0;font:500 11.5px/1.5 Manrope;color:rgba(16,38,74,.55)">${chUname(c).length>=3?'Метрики — Telemetr, ссылка на канал — реальная (TGStat). «Открыть» ведёт прямо в Telegram; для размещения напишите админам канала.':'Данные Telemetr по реальному каналу. Прямую ссылку не удалось подтвердить — «Открыть» скопирует название для поиска в Telegram.'}</p>
     </div>
+    ${dealKit(c)}
     <div style="display:flex;gap:7px;margin-top:2px">
       <span class="pbtn dark" data-keep="${c.id}">Оставить в плане</span>
       <span class="pbtn" data-open-link="${c.id}">Открыть ↗</span>
@@ -2005,6 +2059,7 @@ document.addEventListener('click',e=>{
     case 'rebuild': buildPlan(); learnProfile(); go('analysis'); runAnalysis(); break;
     case 'download': downloadPlan(); break;
     case 'contacts': toast('Запросили рекламные контакты каналов'); break;
+    case 'copyOutreach': if(S._channel){ copy(outreachFor(S._channel),'Сообщение админу скопировано'); haptic('ok'); } break;
     case 'requests': toast('Отправили запросы на размещение'); break;
     case 'newSearch': newSearch(); break;
     case 'goSaved': go('saved'); break;

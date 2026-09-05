@@ -98,6 +98,9 @@
               S.pool = Array.isArray(plan.pool) ? plan.pool : [];   // real replacement options
               if (plan.vertical) S.vertical = plan.vertical;        // sync AI-resolved niche → tags/creative
               S._insight = plan.insight || null;                    // AI reasoning: brand → buyer → where
+              S._salesKit = (plan.outreach || (plan.dealTips && plan.dealTips.length))
+                ? { outreach: plan.outreach || '', dealTips: Array.isArray(plan.dealTips) ? plan.dealTips : [] }
+                : null;                                             // paid layer: ready outreach + deal tips
               S._noData = false;
               if (plan.plan) { S.plan.overlap = plan.plan.overlap; S.plan.confidence = plan.plan.confidence; S.plan.clicks = plan.plan.clicks; }
               if (plan.strategy) S.plan.strategy = plan.strategy;
