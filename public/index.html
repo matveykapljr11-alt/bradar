@@ -1383,6 +1383,8 @@ function dealKit(c){
       <div style="font:600 11px Manrope;color:rgba(16,38,74,.5);margin-bottom:5px">Советы по сделке</div>
       <ul style="margin:0;padding-left:17px;font:500 12px/1.5 Manrope;color:var(--navy)">${tips}</ul>
     </div>
+    <span class="pbtn accent" data-act="dealWrite" style="display:block;text-align:center;margin-top:14px">${url?'Открыть канал и написать →':'Скопировать сообщение и найти канал →'}</span>
+    <p class="hint" style="margin:8px 0 0;text-align:center">${url?'Скопируем сообщение и откроем канал в Telegram — вставьте его в чат с админами.':'Скопируем сообщение и название — найдите канал в поиске Telegram и вставьте.'}</p>
   </div>`;
 }
 function realChannelDetail(c){
@@ -2060,6 +2062,7 @@ document.addEventListener('click',e=>{
     case 'download': downloadPlan(); break;
     case 'contacts': toast('Запросили рекламные контакты каналов'); break;
     case 'copyOutreach': if(S._channel){ copy(outreachFor(S._channel),'Сообщение админу скопировано'); haptic('ok'); } break;
+    case 'dealWrite': { const c=S._channel; if(!c) break; const has=(typeof chUrl==='function')&&chUrl(c); copy(outreachFor(c),has?'Сообщение скопировано — открываю канал, вставьте в чат':'Сообщение и название скопированы — найдите канал в Telegram и вставьте'); if(has) openChannelLink(c); haptic('ok'); break; }
     case 'requests': toast('Отправили запросы на размещение'); break;
     case 'newSearch': newSearch(); break;
     case 'goSaved': go('saved'); break;
