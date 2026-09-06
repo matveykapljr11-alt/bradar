@@ -15,6 +15,32 @@ const KEY = process.env.TELEMETR_API_KEY || '';
 const BASE = process.env.TELEMETR_BASE || 'https://api.tlmtr.io';
 
 function enabled() { return !!KEY; }
+
+// ---- hard topic-relevance gate --------------------------------------------------------------
+// Telemetr's term search matches loosely (an airline can surface for "кофе"). To keep the plan
+// clean we require a NON-local channel's title to share a real topic word with the brand. Local
+// (geoLocal) channels are exempt — their value is being IN the town, not the topic.
+const REL_STOP = new Set(['москва', 'россия', 'russia', 'рф', 'сити', 'city', 'канал', 'channel', 'чат', 'chat', 'group', 'групп', 'онлайн', 'online', 'news', 'новости', 'официальный', 'офиц', 'official', 'купить', 'заказать', 'магазин', 'shop', 'store', 'россии', 'мск', 'спб']);
+// topic stems from the brand's own words + AI-expanded search terms; 4+ chars, sliced to 5,
+// stopwords and city/geo tokens removed (geo is handled separately by geoLocal).
+function topicStems(words, drop) {
+  const stop = new Set(REL_STOP);
+  (drop || []).forEach(d => String(d).toLowerCase().replace(/ё/g, 'е').split(/[^a-zа-яa-z0-9]+/).forEach(w => w && stop.add(w)));
+  const stems = [];
+  for (const t of words || []) {
+    for (const w of String(t).toLowerCase().replace(/ё/g, 'е').split(/[^a-zа-яa-z0-9]+/)) {
+      if (w.length < 4 || stop.has(w)) continue;
+      const s = w.slice(0, 5);
+      if (!stems.includes(s)) stems.push(s);
+    }
+  }
+  return stems;
+}
+// word-START match (not substring) so "победа" never matches the stem "еда" etc.
+function titleOnTopic(name, stems) {
+  const words = String(name || '').toLowerCase().replace(/ё/g, 'е').split(/[^a-zа-яa-z0-9]+/).filter(Boolean);
+  return words.some(w => stems.some(s => w.startsWith(s) || (w.length >= 4 && s.startsWith(w))));
+}
 // cache search results per term — Telemetr free tier is only 1000 requests/month and each подбор
 // fires ~15-20 searches; terms like «туризм»/«троицк» repeat across brands, so a 24h cache slashes
 // quota use. Only non-empty results are cached (never cache a quota-exhausted empty response).
@@ -466,6 +492,15 @@ async function fetchCandidates(input = {}) {
     // channel is never a competitor — keep it even if it runs commerce posts)
     const clean = out.filter(c => !c.competitor || c.geoLocal);
     let finalOut = (clean.length >= 3 ? clean : out);
+    // HARD topic-relevance gate: drop obvious off-topic junk (Telemetr loose match) — a non-local
+    // channel must share a topic word with the brand. Local channels are exempt (town > topic).
+    // "Лучше 4 идеальных, чем 8 с мусором" — bias to a clean set; only skip if it wipes everything.
+    const stems = topicStems([].concat(brandKw || [], input.searchTerms || []), [input.geoCity, ...(places || [])]);
+    if (stems.length >= 2) {
+      const onTopic = finalOut.filter(c => c.geoLocal || titleOnTopic(c.name, stems));
+      if (tr) tr.push({ stage: 'relevance-gate', stems, before: finalOut.length, kept: onTopic.length, dropped: finalOut.filter(c => !(c.geoLocal || titleOnTopic(c.name, stems))).map(c => c.name).slice(0, 8) });
+      if (onTopic.length) finalOut = onTopic;   // keep clean set; if it wipes all, better thin than empty
+    }
     // geo strictness by the brand's REACH MODEL (media-buyer methodology, «Пример — Троицк»):
     // local channels are PREFERRED, but we NEVER dead-end to an empty screen — if the town has
     // few/no channels, relevant thematic/adjacent channels beat a blank result. A truly empty
