@@ -64,13 +64,15 @@ async function groqPickModel() {
   try {
     const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { authorization: 'Bearer ' + GROQ_KEY }, signal: AbortSignal.timeout(6000) });
     if (r.ok) {
-      // exclude audio/guard/embeddings AND reasoning models (gpt-oss / deepseek-r1 / qwen-qwq put
-      // the answer in a reasoning channel → empty/plain content, bad for structured JSON)
-      const ids = ((await r.json()).data || []).map(m => m.id).filter(id => id && !/whisper|tts|guard|embed|vision|prompt-?guard|gpt-oss|deepseek-r1|qwq|reasoning/i.test(id));
+      // exclude audio/tts (whisper/orpheus/canopylabs), guard, embeddings, vision AND reasoning
+      // models (gpt-oss / deepseek-r1 / qwen-qwq / qwen3 put the answer in a reasoning channel and
+      // carry tiny token limits → empty/plain content + 429s, bad for structured JSON classify)
+      const ids = ((await r.json()).data || []).map(m => m.id).filter(id => id && !/whisper|tts|orpheus|canopylabs|guard|embed|vision|prompt-?guard|gpt-oss|deepseek-r1|qwq|qwen-?3|reasoning/i.test(id));
       _groqModels = ids;
-      // prefer reliable instruct models good at JSON
-      const pref = [envM, 'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama3-70b-8192', 'llama-3.1-8b-instant', 'llama3-8b-8192', 'gemma2-9b-it', 'mixtral-8x7b-32768'].filter(Boolean);
-      _groqModel = pref.find(p => ids.includes(p)) || ids.find(id => /llama.*(70b|versatile)/i.test(id)) || ids.find(id => /llama|instruct|-it\b/i.test(id)) || ids[0] || null;
+      // prefer reliable instruct models good at JSON; groq/compound* is the usable fallback on
+      // limited accounts that lack llama (it answers plainly + honors JSON well enough).
+      const pref = [envM, 'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama3-70b-8192', 'groq/compound', 'groq/compound-mini', 'llama-3.1-8b-instant', 'llama3-8b-8192', 'gemma2-9b-it', 'mixtral-8x7b-32768', 'allam-2-7b'].filter(Boolean);
+      _groqModel = pref.find(p => ids.includes(p)) || ids.find(id => /llama.*(70b|versatile)/i.test(id)) || ids.find(id => /llama|instruct|-it\b|compound|gemma/i.test(id)) || ids[0] || null;
     }
   } catch (e) {}
   return _groqModel || envM || 'llama-3.1-8b-instant';

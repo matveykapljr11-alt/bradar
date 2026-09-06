@@ -544,6 +544,8 @@ function guessBrandName(text,def){
   if(lat && !/^(Мы|Наш|Наша|Хотим|Продаём|Бренд|Компания)$/i.test(lat[1])) return lat[1];
   return def;
 }
+// grammatical brand label for «Медиаплан для …» headers: a real name as-is, else «вашего бренда»
+function brandLabel(){ const n=(S.brand.name||'').trim(); return (!n||n==='ваш бренд')?'вашего бренда':n; }
 function sameProject(pr){
   const norm=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
   return pr && norm(pr.desc) && norm(pr.desc)===norm(S.brand.desc);
@@ -937,7 +939,7 @@ const ASTEPS=[
 SCREENS.analysis=function(){
   return statusBar()+
   `<div class="hero b" style="margin-top:-40px;padding-top:60px;padding-bottom:30px;min-height:100vh">
-    <h1 style="font-size:22px">Собираем медиаплан для ${S.brand.name}</h1>
+    <h1 style="font-size:22px">Собираем медиаплан для ${esc(brandLabel())}</h1>
     <p style="margin-bottom:26px">Обычно занимает около минуты</p>
     <div id="aTimeline" style="display:flex;flex-direction:column">
       ${ASTEPS.map((st,i)=>aStepRow(st,i,0)).join('')}
@@ -1057,7 +1059,7 @@ function planEmptyState(){
   return statusBar()+
   `<div class="hero b" style="margin-top:-40px;padding-top:44px;padding-bottom:52px">
     <div class="hrow"><button class="back" data-act="back">← Параметры</button></div>
-    <h1 style="font-size:23px">Медиаплан для ${esc(S.brand.name||'вашего бренда')}</h1>
+    <h1 style="font-size:23px">Медиаплан для ${esc(brandLabel())}</h1>
     <p>${searching?'Ищем реальные каналы под ваш бренд…':'Поиск завершён'}</p>
   </div>
   <div class="body" style="margin-top:-40px;position:relative;z-index:2">
@@ -1085,7 +1087,7 @@ SCREENS.plan=function(){
       <button class="back" data-act="back">← Параметры</button>
       <div class="hbtns"><span class="hbtn" data-act="save">${saved?'✓ Сохранён':'Сохранить'}</span><span class="hbtn" data-act="share">Поделиться</span><span class="hbtn" data-act="export">•••</span></div>
     </div>
-    <h1 style="font-size:24px">Медиаплан для ${S.brand.name}</h1>
+    <h1 style="font-size:24px">Медиаплан для ${esc(brandLabel())}</h1>
     <p>Подобрали ${t.count} реальных ${plural(t.count,'канал','канала','каналов')} под ваш бренд и распределили бюджет ${fmt(t.budget)} ₽.</p>
   </div>
   <div class="body" style="margin-top:-40px;position:relative;z-index:2">

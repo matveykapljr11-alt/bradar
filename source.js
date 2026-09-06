@@ -446,9 +446,11 @@ async function fetchCandidates(input = {}) {
         },
       };
     }).filter(c => c.subs > 0)
-      // ads belong in CHANNELS (a post stays in the feed), not chats (a post scrolls away).
-      // Drop local chats by default — set BRADAR_LOCAL_CHATS=1 to keep them (clearly labeled).
-      .filter(c => process.env.BRADAR_LOCAL_CHATS === '1' || !c.chat);
+      // ads belong in CHANNELS (a post stays in the feed) rather than chats (a post scrolls away),
+      // so drop generic/national chats. BUT keep the town's OWN local chats here — for a thin town
+      // (Троицк) they're the only local inventory, and a labeled local chat beats an empty screen.
+      // The channels-vs-chats preference is decided below, once we know how many local channels exist.
+      .filter(c => process.env.BRADAR_LOCAL_CHATS === '1' || !c.chat || c.geoLocal);
     // via TGStat: resolve @username/link + read the last 3 posts → competitor flag AND a
     // brand-relevance signal (does the channel actually post about the brand's topic?)
     try { await tgstat.enrichLinks(out, brandKw); } catch (e) {}
@@ -477,10 +479,17 @@ async function fetchCandidates(input = {}) {
       // default (rm empty): a brand typed WITH a city is usually a local point → treat as local.
       // area / high_ticket / online explicitly opt into thematic channels.
       const localOnly = rm === 'local_point' || rm === 'delivery' || rm === '';
+      // Prefer the town's own CHANNELS; keep local CHATS only as a fallback when channels are too
+      // few. So a well-covered town shows channels only (as preferred), while a thin town (Троицк,
+      // Мурино) still shows its labeled local chats instead of dead-ending to an empty screen.
+      if (process.env.BRADAR_LOCAL_CHATS !== '1') {
+        const localCh = finalOut.filter(c => c.geoLocal && !c.chat);
+        if (localCh.length >= 3) finalOut = finalOut.filter(c => !c.chat);
+      }
       if (localOnly) {
         const local = finalOut.filter(c => c.geoLocal);
-        // enough of the town's own channels → local-only; if the town is thin (small suburb like
-        // Мурино), keep relevant thematic as добор so the plan isn't a lonely single result.
+        // enough of the town's own inventory (channels, or chats as fallback) → local-only; if the
+        // town is thin, keep relevant thematic as добор so the plan isn't a lonely single result.
         if (local.length >= 3) finalOut = local;
       }
     }
