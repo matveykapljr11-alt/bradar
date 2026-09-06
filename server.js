@@ -156,7 +156,7 @@ async function handler(req, res) {
       try { return send(res, 200, fs.readFileSync(CLIENT_JS, 'utf8'), { 'content-type': 'application/javascript; charset=utf-8' }); }
       catch (e) { return send(res, 404, '// not found'); }
     }
-    if (p === '/health') return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed', contacts: require('./tgstat').enabled() ? 'tgstat' : 'none', storage: store.usingRedis ? 'redis' : 'file' });
+    if (p === '/health') { const rz = require('./resolver'); return send(res, 200, { ok: true, ai: ai.enabled(), aiProvider: ai.provider(), dataSource: source.enabled() ? 'telemetr' : 'seed', contacts: require('./tgstat').enabled() ? 'tgstat' : 'none', resolver: rz.enabled() ? 'on' : (rz.searchEnabled() ? 'no-bottoken' : 'no-searchkey'), storage: store.usingRedis ? 'redis' : 'file' }); }
 
     // ---- admin dashboard ----
     if (p === '/admin') {
