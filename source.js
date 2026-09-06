@@ -11,6 +11,7 @@
 
 const tgstat = require('./tgstat');
 const store = require('./store');
+const resolver = require('./resolver');
 const KEY = process.env.TELEMETR_API_KEY || '';
 const BASE = process.env.TELEMETR_BASE || 'https://api.tlmtr.io';
 
@@ -531,6 +532,9 @@ async function fetchCandidates(input = {}) {
     // local channels first, then local chats, then thematic — chats are weaker ad inventory
     const finRank = c => (c.geoLocal ? (c.chat ? 1 : 2) : 0);
     finalOut = finalOut.sort((a, b) => (finRank(b) - finRank(a)) || (b.match - a.match));
+    // resolve a real @username + advertising contact for the shortlist (web search + Bot API),
+    // best-effort — a channel we can't confidently resolve just keeps the "find in Telegram" fallback.
+    try { await resolver.enrichChannels(finalOut, tr); } catch (e) {}
     if (tr) tr.push({ stage: 'final', outCount: out.length, finalCount: finalOut.length, geoLocalFinal: finalOut.filter(c => c.geoLocal).length, finalTitles: finalOut.slice(0, 12).map(c => c.name + (c.geoLocal ? ' [LOCAL]' : '')) });
     return finalOut.length ? finalOut : null;
   } catch (e) {
