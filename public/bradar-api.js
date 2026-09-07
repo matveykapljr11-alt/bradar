@@ -33,6 +33,30 @@
     } catch (e) {}
   }
 
+  /* --- lazy contact resolve: called when a channel card opens, patches it in place --- */
+  function resolveContact(ch) {
+    try {
+      if (!ch || !window.BRADAR.online) return;
+      if (ch.username || ch._resolveTried) return;         // already resolved, or tried this session
+      ch._resolveTried = true;
+      api('/api/resolve', { method: 'POST', body: JSON.stringify({ name: ch.name, subs: ch.subs, id: ch.id }) })
+        .then(function (r) {
+          if (!r || !r.resolved) { reRender(['channel']); return; }   // re-render to drop the "ищем…" state
+          var patch = function (c) {
+            if (!c) return;
+            c.username = String(r.username || '').replace(/^@/, ''); c.handle = '@' + c.username;
+            c.link = r.link; c.resolved = true; c.contactConfidence = r.confidence;
+            if (r.adContact) c.adContact = r.adContact;
+          };
+          patch(ch);
+          try { if (Array.isArray(S.channels)) { var m = S.channels.filter(function (x) { return x.id === ch.id; })[0]; if (m) patch(m); } } catch (e) {}
+          try { if (S._channel && S._channel.id === ch.id) patch(S._channel); } catch (e) {}
+          reRender(['channel']);
+        }).catch(function () {});
+    } catch (e) {}
+  }
+  window.BRADAR.resolveContact = resolveContact;
+
   /* --- config + hydrate state from server --- */
   api('/api/config').then(function (cfg) {
     window.BRADAR.online = true; window.BRADAR.config = cfg;

@@ -130,6 +130,18 @@ module.exports = {
     const d = fileDb(); if (!d.cache) d.cache = {}; d.cache[key] = { v: value, exp: Date.now() + (ttlSec || 3600) * 1000 }; fileFlush();
   },
 
+  // atomic-ish counter for rate limiting. Returns the new count. Fails OPEN (returns 0) on any
+  // store error so a Redis hiccup never locks users out. Redis path uses INCR (+EXPIRE on first).
+  async bump(key, ttlSec) {
+    if (useRedis) {
+      try { const n = Number(await redisCmd(['INCR', 'bradar:rl:' + key])) || 0; if (n === 1) { try { await redisCmd(['EXPIRE', 'bradar:rl:' + key, String(ttlSec || 3600)]); } catch (e) {} } return n; }
+      catch (e) { return 0; }
+    }
+    const d = fileDb(); if (!d.rl) d.rl = {}; const now = Date.now(); const e = d.rl[key];
+    if (!e || e.exp <= now) d.rl[key] = { n: 1, exp: now + (ttlSec || 3600) * 1000 }; else e.n++;
+    fileFlush(); return d.rl[key].n;
+  },
+
   // ---- admin aggregate (for the dashboard) ----
   async adminStats() {
     let ids = [];

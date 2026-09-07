@@ -532,9 +532,10 @@ async function fetchCandidates(input = {}) {
     // local channels first, then local chats, then thematic — chats are weaker ad inventory
     const finRank = c => (c.geoLocal ? (c.chat ? 1 : 2) : 0);
     finalOut = finalOut.sort((a, b) => (finRank(b) - finRank(a)) || (b.match - a.match));
-    // resolve a real @username + advertising contact for the shortlist (web search + Bot API),
-    // best-effort — a channel we can't confidently resolve just keeps the "find in Telegram" fallback.
-    try { await resolver.enrichChannels(finalOut, tr); } catch (e) {}
+    // contact resolve is LAZY by default (client calls /api/resolve when a card opens) — keeps
+    // /api/analyze fast and only spends a lookup on channels the user actually views. Set
+    // RESOLVE_EAGER=1 to resolve the whole shortlist here (old behaviour, heavier + slower).
+    if (process.env.RESOLVE_EAGER === '1') { try { await resolver.enrichChannels(finalOut, tr); } catch (e) {} }
     if (tr) tr.push({ stage: 'final', outCount: out.length, finalCount: finalOut.length, geoLocalFinal: finalOut.filter(c => c.geoLocal).length, finalTitles: finalOut.slice(0, 12).map(c => c.name + (c.geoLocal ? ' [LOCAL]' : '')) });
     return finalOut.length ? finalOut : null;
   } catch (e) {

@@ -21,7 +21,16 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 
 // primary provider for cache keys / status; callLLM falls back across providers at runtime, so a
 // dead key (e.g. an xAI team out of credits → 403) transparently uses the next configured one.
-function provider() { if (GROQ_KEY) return 'groq'; if (XAI_KEY) return 'xai'; if (ANTHROPIC_KEY) return 'anthropic'; return null; }
+// preferred provider order: an explicit AI_PROVIDER wins; otherwise Anthropic (most reliable) >
+// Groq > xAI — so adding ANTHROPIC_API_KEY automatically takes over from a flaky Groq account.
+function providerChain() {
+  const have = { anthropic: !!ANTHROPIC_KEY, groq: !!GROQ_KEY, xai: !!XAI_KEY };
+  const order = [], add = n => { if (have[n] && !order.includes(n)) order.push(n); };
+  const pref = (process.env.AI_PROVIDER || '').toLowerCase(); if (pref) add(pref);
+  ['anthropic', 'groq', 'xai'].forEach(add);
+  return order;
+}
+function provider() { return providerChain()[0] || null; }
 function enabled() { return !!(GROQ_KEY || XAI_KEY || ANTHROPIC_KEY); }
 function groqModel() { return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; }
 function xaiModel() { return process.env.XAI_MODEL || 'grok-4'; }
@@ -95,9 +104,13 @@ async function callAnthropic(system, user, maxTokens) {
 // here, and if it fails the search degrades to keyword-only and returns junk (ministries etc.).
 async function callLLM(system, user, maxTokens = 1800, json = false) {
   const errs = [];
-  if (GROQ_KEY) { try { return await callGroq(system, user, maxTokens, json); } catch (e) { errs.push(String(e.message || e)); } }
-  if (XAI_KEY) { try { return await callXAI(system, user, maxTokens, json); } catch (e) { errs.push(String(e.message || e)); } }
-  if (ANTHROPIC_KEY) { try { return await callAnthropic(system, user, maxTokens); } catch (e) { errs.push(String(e.message || e)); } }
+  for (const p of providerChain()) {
+    try {
+      if (p === 'groq') return await callGroq(system, user, maxTokens, json);
+      if (p === 'xai') return await callXAI(system, user, maxTokens, json);
+      if (p === 'anthropic') return await callAnthropic(system, user, maxTokens);
+    } catch (e) { errs.push(String(e.message || e)); }
+  }
   throw new Error(errs.length ? errs.join(' | ') : 'no AI provider configured');
 }
 

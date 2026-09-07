@@ -1356,9 +1356,12 @@ function dealKit(c){
   // real advertising contact (resolved from the channel's description/pinned) is the money line;
   // fall back to the channel @username, then to "find in Telegram" when we couldn't resolve it.
   const adLine=ad?`<div style="margin-bottom:6px"><span style="font:600 11px Manrope;color:rgba(16,38,74,.5)">По рекламе:</span> ${adUrl?`<a href="${adUrl}" style="font:700 13px Manrope;color:var(--teal);text-decoration:none">${esc(ad)}</a>`:`<span style="font:700 13px Manrope;color:var(--navy)">${esc(ad)}</span>`}</div>`:'';
+  const resolving = !uname && !ad && !!(window.BRADAR&&window.BRADAR.online) && c._resolveTried && !c.resolved;
   const chLine = uname
     ? `<a href="${url||('https://t.me/'+uname)}" style="font:${ad?'600 12px':'700 13px'} Manrope;color:var(--blue);text-decoration:none">@${esc(uname)}</a> <span style="font:500 11px Manrope;color:rgba(16,38,74,.45)">· ${ad?'сам канал':'напишите админам через профиль канала'}</span>`
-    : `<span style="font:600 12.5px Manrope;color:var(--navy)">${esc(c.name)}</span> <span style="font:500 11px Manrope;color:rgba(16,38,74,.45)">· найдите в поиске Telegram и напишите админам</span>`;
+    : resolving
+      ? `<span style="font:500 12.5px Manrope;color:rgba(16,38,74,.5)">Ищем контакт канала…</span>`
+      : `<span style="font:600 12.5px Manrope;color:var(--navy)">${esc(c.name)}</span> <span style="font:500 11px Manrope;color:rgba(16,38,74,.45)">· найдите в поиске Telegram и напишите админам</span>`;
   const contact = adLine + chLine;
   if(!dealUnlocked()){
     return `<div class="card lg" style="border:1.5px solid #D7E7FC;background:var(--soft)">
@@ -1978,6 +1981,7 @@ function openChannel(id,forceDetail){
   const c=findChannel(id); if(!c) return;
   S._channel=Object.assign({},c); S._channel._fav=isFav(id);
   if(forceDetail) S._channel.detail=true;
+  try{ if(window.BRADAR && window.BRADAR.resolveContact) window.BRADAR.resolveContact(S._channel); }catch(e){}
   go('channel');
 }
 

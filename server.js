@@ -94,6 +94,13 @@ function isAdmin(req, url) {
   return false;
 }
 
+// coarse rate limit: true = allowed, false = over the cap. Fixed daily window (UTC). Fails open.
+async function underLimit(bucket, id, max, windowSec) {
+  if (!max) return true;
+  try { const n = await store.bump(bucket + ':' + id + ':' + Math.floor(Date.now() / 1000 / windowSec), windowSec); return !n || n <= max; }
+  catch (e) { return true; }
+}
+
 /* ---------------- helpers ---------------- */
 function send(res, code, obj, headers) {
   const body = typeof obj === 'string' ? obj : JSON.stringify(obj);
@@ -251,6 +258,18 @@ async function handler(req, res) {
       }
       if (p === '/api/analyze' && (req.method === 'POST' || req.method === 'GET')) {
         const b = req.method === 'POST' ? await readBody(req) : Object.fromEntries(url.searchParams);
+        // auth: a valid Telegram user (or dev fallback while ALLOW_INSECURE_AUTH is on). Once the
+        // insecure flag is removed for prod, unauthenticated calls are rejected → API is closed.
+        const who = authUser(req);
+        if (!who) return send(res, 401, { error: 'auth', message: 'Откройте приложение внутри Telegram.' });
+        // debug traces expose internals + burn upstream quota → admin-only, never public.
+        if (b.debug && !isAdmin(req, url)) b.debug = false;
+        // rate limits: per-user daily cap + a global daily cap that protects the Telemetr quota
+        // (~10k req/mo ÷ ~25 req per подбор ≈ keep global ≤ ~300/day). Fails open on store errors.
+        if (!(await underLimit('an', who.id, Number(process.env.ANALYZE_LIMIT_DAY) || 25, 86400)))
+          return send(res, 429, { error: 'rate', message: 'Слишком много подборов за сегодня — попробуйте завтра.' });
+        if (!(await underLimit('ang', 'all', Number(process.env.ANALYZE_GLOBAL_DAY) || 300, 86400)))
+          return send(res, 503, { error: 'busy', message: 'Сервис под высокой нагрузкой — загляните чуть позже.' });
         // Semantic understanding: when the brand is described vaguely (no direct keywords),
         // ask the model for the real niche + search phrases so we still find the right channels.
         let searchTerms = null, insight = null;
@@ -290,6 +309,22 @@ async function handler(req, res) {
         if (insight && (insight.buyer || (insight.interests && insight.interests.length))) plan.insight = insight;
         if (b.debug) { plan.__clsDebug = b.__clsDebug; plan.__searchTrace = fcInput.__trace; }
         return send(res, 200, plan);
+      }
+      // lazy contact resolve: called by the client when a channel card opens, so /api/analyze stays
+      // fast AND we only spend a Tavily+Bot-API lookup on channels the user actually looks at.
+      if (p === '/api/resolve' && req.method === 'POST') {
+        const who = authUser(req);
+        if (!who) return send(res, 401, { error: 'auth' });
+        if (!(await underLimit('rz', who.id, Number(process.env.RESOLVE_LIMIT_DAY) || 60, 86400)))
+          return send(res, 429, { error: 'rate' });
+        const rb = await readBody(req);
+        const resolver = require('./resolver');
+        if (!resolver.enabled()) return send(res, 200, { resolved: false });
+        let r = null;
+        try { r = await resolver.resolveOne({ name: rb.name, subs: rb.subs, internalId: String(rb.id || '').replace(/^tm/, '') }); } catch (e) {}
+        return send(res, 200, r
+          ? { resolved: true, username: r.username, link: r.link, adContact: r.adContact || '', confidence: r.confidence }
+          : { resolved: false });
       }
       if (p === '/api/alternatives' && req.method === 'POST') {
         const b = await readBody(req);
