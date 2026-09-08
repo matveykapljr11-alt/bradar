@@ -7,70 +7,154 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,Manrope,Segoe UI,Roboto,Arial,sans-serif;background:#0B1526;color:#E7EEF9;padding:26px 18px 60px}
-  .wrap{max-width:920px;margin:0 auto}
+  body{margin:0;font-family:-apple-system,Manrope,Segoe UI,Roboto,Arial,sans-serif;background:#0B1526;color:#E7EEF9;padding:26px 18px 80px}
+  .wrap{max-width:1100px;margin:0 auto}
   h1{font-size:22px;margin:0 0 2px;letter-spacing:-.3px}
   .sub{color:#7E8DA6;font-size:12.5px;margin:0 0 22px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
-  .card{background:#13203A;border:1px solid #22314f;border-radius:14px;padding:16px 17px}
-  .card b{display:block;font-size:26px;letter-spacing:-.5px}
-  .card span{color:#7E8DA6;font-size:12px}
-  .sec{font:700 13px Manrope;color:#9DB0CF;margin:24px 0 10px;letter-spacing:.3px;text-transform:uppercase}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+  .card{background:#13203A;border:1px solid #22314f;border-radius:14px;padding:15px 16px}
+  .card b{display:block;font-size:25px;letter-spacing:-.5px}
+  .card span{color:#7E8DA6;font-size:11.5px}
+  .card.warn b{color:#F3B8C8}
+  .card.good b{color:#5FE3C0}
+  .sec{font:700 13px Manrope;color:#9DB0CF;margin:26px 0 10px;letter-spacing:.3px;text-transform:uppercase}
   table{width:100%;border-collapse:collapse;font-size:12.5px;background:#13203A;border:1px solid #22314f;border-radius:12px;overflow:hidden}
-  th{text-align:left;color:#7E8DA6;font-weight:700;font-size:11px;padding:10px 12px;background:#0F1B31}
-  td{padding:9px 12px;border-top:1px solid #1c2942}
+  th{text-align:left;color:#7E8DA6;font-weight:700;font-size:11px;padding:10px 12px;background:#0F1B31;white-space:nowrap}
+  td{padding:9px 12px;border-top:1px solid #1c2942;vertical-align:top}
+  tr.row{cursor:pointer}
+  tr.row:hover td{background:#182647}
   .pro{display:flex;gap:10px;flex-wrap:wrap}
   .pill{background:#13203A;border:1px solid #22314f;border-radius:10px;padding:9px 13px;font-size:13px}
   .pill b{color:#5FE3C0}
   .err{background:#2A1420;border:1px solid #5A2740;color:#F3B8C8;border-radius:12px;padding:16px;font-size:13px}
   .mut{color:#7E8DA6}
-  a.reload{color:#6EA8FF;font-size:12.5px;text-decoration:none}
+  .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:6px;background:#1c2942;color:#9DB0CF;margin-left:5px}
+  .tag.loc{background:#123A2C;color:#5FE3C0}.tag.chat{background:#3A3312;color:#E3D15F}.tag.aierr{background:#3A1420;color:#F3B8C8}
+  a{color:#6EA8FF;text-decoration:none}
+  a.reload{font-size:12.5px}
   .tnum{font-variant-numeric:tabular-nums}
+  .detail{background:#0F1B31}
+  .detail .box{padding:4px 2px 8px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 12px;font-size:12px;margin:6px 0 12px}
+  .kv .k{color:#7E8DA6}
+  .chan{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #1c2942;font-size:12px}
+  .chan .m{font-weight:800;color:#6EA8FF;width:38px;text-align:right}
+  .blk{background:#13203A;border:1px solid #22314f;border-radius:10px;padding:10px 12px;margin:6px 0;font-size:12px;white-space:pre-wrap;line-height:1.5}
+  .lbl{font:700 11px Manrope;color:#9DB0CF;text-transform:uppercase;letter-spacing:.3px;margin:12px 0 4px}
+  .filter{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  .filter input{background:#0F1B31;border:1px solid #22314f;color:#E7EEF9;border-radius:9px;padding:8px 11px;font-size:13px;min-width:220px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>BRADAR · админ</h1>
-  <p class="sub">Сводка по мини-аппу · <a class="reload" href="#" id="reload">обновить</a> · <span id="ts" class="mut"></span></p>
+  <p class="sub">Полная сводка · <a class="reload" href="#" id="reload">обновить</a> · <span id="ts" class="mut"></span></p>
   <div id="root"><p class="mut">Загрузка…</p></div>
 </div>
 <script>
 (function(){
   function q(k){ return new URLSearchParams(location.search).get(k) || ''; }
   var token = q('token');
+  var DATA = null, FILTER = '';
   function initData(){ try{ return (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) || ''; }catch(e){ return ''; } }
   function fmt(n){ n=Number(n)||0; return n.toLocaleString('ru-RU').replace(/,/g,' '); }
   function dt(ms){ if(!ms) return '—'; try{ return new Date(ms).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function card(v,l,cls){ return '<div class="card '+(cls||'')+'"><b class="tnum">'+v+'</b><span>'+l+'</span></div>'; }
 
-  function render(d){
-    var pro = d.pro || {};
+  function chanLine(c){
+    var h = c.handle ? ' <a href="https://t.me/'+esc(String(c.handle).replace(/^@/,''))+'" target="_blank">'+esc(c.handle)+'</a>' : '';
+    var tags = (c.geoLocal?'<span class="tag loc">локальный</span>':'') + (c.chat?'<span class="tag chat">чат</span>':'') + (c.adContact?'<span class="tag loc">рекл: '+esc(c.adContact)+'</span>':'');
+    return '<div class="chan"><span class="m tnum">'+fmt(c.match)+'%</span><span>'+esc(c.name)+h+' <span class="mut">· '+fmt(c.subs)+' подп.</span>'+tags+'</span></div>';
+  }
+  function detail(r){
+    var ins = r.insight || {};
+    var kv = ''
+      + kvRow('Запрос', esc(r.input && r.input.desc || '—'))
+      + kvRow('Город', esc((r.input&&r.input.geoCity)||'—')+(r.reachModel?'  <span class="mut">· модель: '+esc(r.reachModel)+'</span>':''))
+      + kvRow('Бюджет', fmt(r.input&&r.input.budget)+' ₽')
+      + kvRow('Цель / гео', esc((r.input&&r.input.goal)||'—')+' / '+esc((r.input&&r.input.geo)||'—'))
+      + kvRow('Аудитория', esc((r.input&&r.input.audience)||'—'))
+      + kvRow('Вертикаль', esc(r.vertical||'—'))
+      + kvRow('Покупатель (AI)', esc(ins.buyer||'—')+(ins.audienceType?' <span class="mut">('+esc(ins.audienceType)+')</span>':''))
+      + kvRow('Интересы (AI)', (ins.interests&&ins.interests.length)?ins.interests.map(esc).join(', '):'—')
+      + kvRow('Источник', esc(r.source||'—')+' · '+fmt(r.count)+' каналов · '+fmt(r.ms)+' мс'+(r.aiError?' <span class="tag aierr">AI: '+esc(r.aiError).slice(0,80)+'</span>':''));
+    var chans = (r.channels&&r.channels.length) ? r.channels.map(chanLine).join('') : '<div class="mut" style="padding:6px 0">— пусто —</div>';
+    var extra = '';
+    if(r.strategy) extra += '<div class="lbl">Стратегия</div><div class="blk">'+esc(r.strategy)+'</div>';
+    if(r.outreach) extra += '<div class="lbl">Готовое сообщение админу</div><div class="blk">'+esc(r.outreach)+'</div>';
+    if(r.dealTips&&r.dealTips.length) extra += '<div class="lbl">Советы по сделке</div><div class="blk">'+r.dealTips.map(function(t){return '• '+esc(t);}).join('\n')+'</div>';
+    return '<div class="box"><div class="kv">'+kv+'</div><div class="lbl">Выданные каналы ('+fmt(r.count)+')</div>'+chans+extra+'</div>';
+  }
+  function kvRow(k,v){ return '<div class="k">'+k+'</div><div>'+v+'</div>'; }
+
+  function rowsHtml(){
+    var log = (DATA.log||[]).filter(function(r){
+      if(!FILTER) return true;
+      var hay = ((r.input&&r.input.desc)||'')+' '+((r.input&&r.input.geoCity)||'')+' '+(r.user||'')+' '+(r.uid||'');
+      return hay.toLowerCase().indexOf(FILTER.toLowerCase())>=0;
+    });
+    if(!log.length) return '<tr><td colspan="7" class="mut">нет запросов'+(FILTER?' по фильтру':'')+'</td></tr>';
+    return log.map(function(r,i){
+      var cnt = (r.count||0);
+      var cntCell = cnt===0 ? '<span class="tag aierr">0</span>' : '<span class="tnum">'+fmt(cnt)+'</span>';
+      var main = '<tr class="row" data-i="'+i+'">'
+        + '<td class="mut tnum">'+dt(r.ts)+'</td>'
+        + '<td>'+esc(r.user||'—')+'<br><span class="mut" style="font-size:10px">'+esc(String(r.uid||'').slice(0,18))+'</span></td>'
+        + '<td>'+esc(String((r.input&&r.input.desc)||'—').slice(0,70))+'</td>'
+        + '<td>'+esc((r.input&&r.input.geoCity)||'—')+'</td>'
+        + '<td>'+cntCell+'</td>'
+        + '<td class="mut">'+esc(r.source||'—')+(r.aiError?' <span class="tag aierr">AI</span>':'')+'</td>'
+        + '<td class="mut tnum">'+fmt(r.ms)+'мс</td></tr>';
+      var det = '<tr class="detail" data-det="'+i+'" style="display:none"><td colspan="7">'+detail(r)+'</td></tr>';
+      return main+det;
+    }).join('');
+  }
+
+  function render(){
+    var d = DATA, pro = d.pro || {}, req = d.req || {};
     var proKeys = Object.keys(pro);
     var proHtml = proKeys.length ? proKeys.map(function(k){ return '<div class="pill">'+esc(k)+' · <b>'+fmt(pro[k])+'</b></div>'; }).join('') : '<span class="mut">пока нет покупок</span>';
-    var rows = (d.recent||[]).map(function(r){
-      return '<tr><td>'+esc(r.brand)+'</td><td class="tnum">'+fmt(r.budget)+' ₽</td><td class="tnum">'+fmt(r.count)+'</td><td class="mut tnum">'+dt(r.date)+'</td><td class="mut">'+esc(r.uid)+'</td></tr>';
-    }).join('') || '<tr><td colspan="5" class="mut">пока нет планов</td></tr>';
     document.getElementById('root').innerHTML =
       '<div class="grid">'+
         card(fmt(d.users),'пользователей')+
-        card(fmt(d.activeUsers),'активных (с планами)')+
+        card(fmt(req.active24h),'активных за 24ч','good')+
+        card(fmt(req.active7d),'активных за 7д')+
+        card(fmt(req.total),'подборов всего')+
+        card(fmt(req.today),'подборов сегодня')+
+        card(fmt(req.avgChannels),'ср. каналов/подбор')+
+        card(fmt(req.emptyRate)+'%','пустых результатов',(req.emptyRate>25?'warn':''))+
+        card(fmt(req.aiErrRate)+'%','сбоев AI',(req.aiErrRate>10?'warn':''))+
         card(fmt(d.plans),'сохранённых планов')+
-        card(fmt(d.favs),'в избранном')+
         card(esc(d.storage),'хранилище')+
       '</div>'+
       '<div class="sec">PRO-покупки</div><div class="pro">'+proHtml+'</div>'+
-      '<div class="sec">Последние планы</div>'+
-      '<table><thead><tr><th>Бренд</th><th>Бюджет</th><th>Каналов</th><th>Когда</th><th>User</th></tr></thead><tbody>'+rows+'</tbody></table>';
+      '<div class="sec">Запросы пользователей · '+fmt((d.log||[]).length)+' (клик — детали: что ввели и что выдало)</div>'+
+      '<div class="filter"><input id="flt" placeholder="фильтр: бренд, город, юзер…" value="'+esc(FILTER)+'"><span class="mut">окно лога: '+fmt(req.window)+'</span></div>'+
+      '<table><thead><tr><th>Время</th><th>Юзер</th><th>Запрос</th><th>Город</th><th>Каналов</th><th>Источник</th><th>Время</th></tr></thead><tbody id="tb">'+rowsHtml()+'</tbody></table>';
     document.getElementById('ts').textContent = 'обновлено '+dt(d.at||Date.now());
+    wire();
   }
-  function card(v,l){ return '<div class="card"><b class="tnum">'+v+'</b><span>'+l+'</span></div>'; }
+  function wire(){
+    var flt = document.getElementById('flt');
+    if(flt) flt.addEventListener('input', function(){ FILTER=flt.value; var tb=document.getElementById('tb'); tb.innerHTML=rowsHtml(); bindRows(); var f2=document.getElementById('flt'); });
+    bindRows();
+  }
+  function bindRows(){
+    Array.prototype.forEach.call(document.querySelectorAll('tr.row'), function(tr){
+      tr.addEventListener('click', function(){
+        var det = document.querySelector('tr.detail[data-det="'+tr.getAttribute('data-i')+'"]');
+        if(det) det.style.display = det.style.display==='none' ? '' : 'none';
+      });
+    });
+  }
 
   function load(){
     document.getElementById('root').innerHTML = '<p class="mut">Загрузка…</p>';
     var url = '/api/admin/stats' + (token ? ('?token='+encodeURIComponent(token)) : '');
     fetch(url, { headers: { 'x-init-data': initData() } })
       .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw j; return j; }); })
-      .then(render)
+      .then(function(d){ DATA=d; render(); })
       .catch(function(e){
         document.getElementById('root').innerHTML = '<div class="err">Нет доступа. Откройте страницу с параметром <b>?token=ВАШ_ADMIN_TOKEN</b>, либо из Telegram под аккаунтом-владельцем (OWNER_TG_ID).<br><br><span class="mut">'+esc((e&&e.error)||'unauthorized')+'</span></div>';
       });

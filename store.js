@@ -142,6 +142,57 @@ module.exports = {
     fileFlush(); return d.rl[key].n;
   },
 
+  // ---- request log (admin analytics) ----
+  // Append one analyze record for the admin dashboard. Best-effort: never throws into a request.
+  // Keeps the newest LOG_KEEP (default 500) records + lifetime/day counters.
+  async logRequest(rec) {
+    const r = Object.assign({ ts: Date.now() }, rec || {});
+    const keep = Number(process.env.LOG_KEEP) || 500;
+    const day = new Date(r.ts).toISOString().slice(0, 10).replace(/-/g, '');
+    if (useRedis) {
+      try {
+        await redisCmd(['LPUSH', 'bradar:log', JSON.stringify(r)]);
+        await redisCmd(['LTRIM', 'bradar:log', '0', String(keep - 1)]);
+        await redisCmd(['INCR', 'bradar:stat:total']);
+        if (r.uid) await redisCmd(['SADD', 'bradar:users', String(r.uid)]);   // count everyone who ran a подбор
+        const dk = 'bradar:stat:day:' + day; await redisCmd(['INCR', dk]); try { await redisCmd(['EXPIRE', dk, '5184000']); } catch (e) {}
+      } catch (e) {}
+      return;
+    }
+    const d = fileDb(); if (!d.log) d.log = []; d.log.unshift(r); d.log = d.log.slice(0, keep);
+    if (r.uid && !d.users[r.uid]) d.users[r.uid] = blankUser();   // register the user for the total count
+    if (!d.stat) d.stat = { total: 0, day: {} }; d.stat.total = (d.stat.total || 0) + 1; d.stat.day[day] = (d.stat.day[day] || 0) + 1;
+    fileFlush();
+  },
+  // newest-first analyze records (full detail), capped.
+  async recentRequests(limit) {
+    const n = Math.min(Number(limit) || 200, Number(process.env.LOG_KEEP) || 500);
+    if (useRedis) {
+      try { const rows = (await redisCmd(['LRANGE', 'bradar:log', '0', String(n - 1)])) || []; return rows.map(s => { try { return JSON.parse(s); } catch (e) { return null; } }).filter(Boolean); }
+      catch (e) { return []; }
+    }
+    return (fileDb().log || []).slice(0, n);
+  },
+  // aggregate metrics derived from the log window + lifetime counter.
+  async requestStats() {
+    const recent = await this.recentRequests(Number(process.env.LOG_KEEP) || 500);
+    const now = Date.now(), DAY = 86400000, todayStr = new Date(now).toISOString().slice(0, 10);
+    const u24 = new Set(), u7 = new Set(); let empty = 0, chSum = 0, chN = 0, today = 0, aiErr = 0;
+    recent.forEach(r => {
+      const t = r.ts || 0;
+      if (r.uid && now - t <= DAY) u24.add(r.uid);
+      if (r.uid && now - t <= 7 * DAY) u7.add(r.uid);
+      if ((r.count || 0) === 0) empty++;
+      if (typeof r.count === 'number') { chSum += r.count; chN++; }
+      if (r.aiError) aiErr++;
+      if (new Date(t).toISOString().slice(0, 10) === todayStr) today++;
+    });
+    let total = recent.length;
+    if (useRedis) { try { const v = await redisCmd(['GET', 'bradar:stat:total']); if (v != null) total = Number(v) || total; } catch (e) {} }
+    else { const s = fileDb().stat; if (s && s.total) total = s.total; }
+    return { total, today, active24h: u24.size, active7d: u7.size, empty, emptyRate: recent.length ? Math.round(empty / recent.length * 100) : 0, aiErrRate: recent.length ? Math.round(aiErr / recent.length * 100) : 0, avgChannels: chN ? Math.round(chSum / chN * 10) / 10 : 0, window: recent.length };
+  },
+
   // ---- admin aggregate (for the dashboard) ----
   async adminStats() {
     let ids = [];

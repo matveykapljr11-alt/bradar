@@ -172,7 +172,11 @@ async function handler(req, res) {
     }
     if (p === '/api/admin/stats') {
       if (!isAdmin(req, url)) return send(res, 403, { error: 'forbidden' });
-      return send(res, 200, await store.adminStats());
+      const base = await store.adminStats();
+      let req2 = {}, log = [];
+      try { req2 = await store.requestStats(); } catch (e) {}
+      try { log = await store.recentRequests(Number(url.searchParams.get('limit')) || 200); } catch (e) {}
+      return send(res, 200, Object.assign(base, { req: req2, log }));
     }
     // admin-only diagnostic: verifies the real channel source actually returns data.
     // Gated behind ADMIN_TOKEN so it can't be used to burn Telemetr quota or probe
@@ -270,6 +274,7 @@ async function handler(req, res) {
           return send(res, 429, { error: 'rate', message: 'Слишком много подборов за сегодня — попробуйте завтра.' });
         if (!(await underLimit('ang', 'all', Number(process.env.ANALYZE_GLOBAL_DAY) || 300, 86400)))
           return send(res, 503, { error: 'busy', message: 'Сервис под высокой нагрузкой — загляните чуть позже.' });
+        const t0 = Date.now();
         // Semantic understanding: when the brand is described vaguely (no direct keywords),
         // ask the model for the real niche + search phrases so we still find the right channels.
         let searchTerms = null, insight = null;
@@ -308,6 +313,19 @@ async function handler(req, res) {
         }
         if (insight && (insight.buyer || (insight.interests && insight.interests.length))) plan.insight = insight;
         if (b.debug) { plan.__clsDebug = b.__clsDebug; plan.__searchTrace = fcInput.__trace; }
+        // admin log: what the user asked + what came back (best-effort, never blocks the response)
+        try {
+          await store.logRequest({
+            uid: who.id, user: who.name, verified: !!who.verified,
+            input: { desc: String(b.desc || '').slice(0, 500), geoCity: b.geoCity || '', budget: Number(b.budget) || 0, goal: b.goal || '', geo: b.geo || '', audience: String(b.audience || '').slice(0, 200) },
+            vertical: b.vertical || '', reachModel: b.reachModel || '',
+            insight: plan.insight || null, source: plan.source || '', aiError: plan.aiError || '',
+            count: Array.isArray(plan.channels) ? plan.channels.length : 0,
+            channels: (plan.channels || []).slice(0, 20).map(c => ({ name: c.name, handle: c.handle || '', subs: c.subs || 0, match: c.match || 0, geoLocal: !!c.geoLocal, chat: !!c.chat, adContact: c.adContact || '' })),
+            strategy: String(plan.strategy || '').slice(0, 600), outreach: String(plan.outreach || '').slice(0, 800), dealTips: Array.isArray(plan.dealTips) ? plan.dealTips.slice(0, 5) : [],
+            ms: Date.now() - t0,
+          });
+        } catch (e) {}
         return send(res, 200, plan);
       }
       // lazy contact resolve: called by the client when a channel card opens, so /api/analyze stays
