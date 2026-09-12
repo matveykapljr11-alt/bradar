@@ -41,10 +41,10 @@ function geminiModel() { return process.env.GEMINI_MODEL || 'gemini-3.6-flash'; 
 function model() { const p = provider(); return p === 'groq' ? groqModel() : p === 'xai' ? xaiModel() : p === 'anthropic' ? anthropicModel() : p === 'gemini' ? geminiModel() : null; }
 
 // OpenAI-compatible chat completions (Groq and xAI share this shape — only base URL + model differ)
-async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxTokens, json) {
+async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxTokens, json, extra) {
   let useJson = json;   // may drop strict JSON mode if the provider rejects the generation
   for (let attempt = 0; attempt < 3; attempt++) {
-    const body = { model: mdl, max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] };
+    const body = Object.assign({ model: mdl, max_tokens: maxTokens, temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, extra || {});
     if (useJson) body.response_format = { type: 'json_object' };
     const res = await fetch(baseUrl, {
       method: 'POST',
@@ -91,8 +91,10 @@ async function groqPickModel() {
 }
 const callGroq = async (s, u, m, json) => callOpenAICompat('https://api.groq.com/openai/v1/chat/completions', GROQ_KEY, await groqPickModel(), 'groq', s, u, m, json);
 const callXAI = (s, u, m, json) => callOpenAICompat('https://api.x.ai/v1/chat/completions', XAI_KEY, xaiModel(), 'xai', s, u, m, json);
-// Gemini exposes an OpenAI-compatible endpoint → reuse the shared caller (Bearer key, JSON mode).
-const callGemini = (s, u, m, json) => callOpenAICompat('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', GEMINI_KEY, geminiModel(), 'gemini', s, u, m, json);
+// Gemini exposes an OpenAI-compatible endpoint. Gemini 3.x "thinks" by default, which both slows
+// the call and eats the output budget (→ truncated/"bad json"). reasoning_effort:'none' turns
+// thinking off — we only need fast structured JSON here, not reasoning. GEMINI_REASONING to override.
+const callGemini = (s, u, m, json) => callOpenAICompat('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', GEMINI_KEY, geminiModel(), 'gemini', s, u, m, json, { reasoning_effort: process.env.GEMINI_REASONING || 'none' });
 async function callAnthropic(system, user, maxTokens) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
