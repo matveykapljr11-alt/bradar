@@ -41,7 +41,7 @@ async function tg(method, payload) {
 
 // ---- pure logic (unit-tested in test-bot.js) --------------------------------
 function startKeyboard() {
-  return { inline_keyboard: [[{ text: '📡 Открыть BRADAR', web_app: { url: APP_URL } }]] };
+  return { inline_keyboard: [[{ text: '📊 Собрать медиаплан', web_app: { url: APP_URL } }]] };
 }
 /** Map an incoming update to a single Bot API action (or null). PURE — no side
  *  effects. The PRO grant for a successful payment is applied by applyPayment()
@@ -50,7 +50,7 @@ function handleUpdate(upd) {
   if (upd.message && typeof upd.message.text === 'string' && /^\/start\b/.test(upd.message.text)) {
     return {
       method: 'sendMessage', chat_id: upd.message.chat.id,
-      text: 'BRADAR — подбираем Telegram-каналы под ваш бренд и собираем медиаплан.\nОпишите бренд своими словами — и мы предложим каналы, объясним выбор и покажем риски.',
+      text: '👋 BRADAR — ИИ-медиапланер для рекламы в Telegram.\n\nОпишите свой бизнес одной фразой — подберём реальные каналы под вашу аудиторию (по метрикам Telemetr, а не наугад), проверим их и соберём медиаплан: распределение бюджета, прогноз охвата и переходов.\n\nГотово за пару минут — жмите кнопку ниже 👇',
       reply_markup: startKeyboard(),
     };
   }

@@ -231,8 +231,8 @@ async function handler(req, res) {
         const app = process.env.APP_URL || '';
         await tg('sendMessage', {
           chat_id: upd.message.chat.id,
-          text: 'BRADAR — подбираем Telegram-каналы под ваш бренд и собираем медиаплан.\nНажмите кнопку ниже или значок меню слева от поля ввода, чтобы открыть приложение.',
-          reply_markup: app ? { inline_keyboard: [[{ text: '📡 Открыть BRADAR', web_app: { url: app } }]] } : undefined,
+          text: '👋 BRADAR — ИИ-медиапланер для рекламы в Telegram.\n\nОпишите свой бизнес одной фразой — подберём реальные каналы под вашу аудиторию (по метрикам Telemetr, а не наугад), проверим их и соберём медиаплан: распределение бюджета, прогноз охвата и переходов.\n\nГотово за пару минут — жмите кнопку ниже 👇',
+          reply_markup: app ? { inline_keyboard: [[{ text: '📊 Собрать медиаплан', web_app: { url: app } }]] } : undefined,
         });
       } else if (upd.message && upd.message.successful_payment) {
         const sp = upd.message.successful_payment;
