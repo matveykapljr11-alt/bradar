@@ -37,7 +37,7 @@ function enabled() { return !!(GROQ_KEY || XAI_KEY || ANTHROPIC_KEY || GEMINI_KE
 function groqModel() { return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; }
 function xaiModel() { return process.env.XAI_MODEL || 'grok-4'; }
 function anthropicModel() { return process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'; }
-function geminiModel() { return process.env.GEMINI_MODEL || 'gemini-2.5-flash'; }
+function geminiModel() { return process.env.GEMINI_MODEL || 'gemini-3.6-flash'; }
 function model() { const p = provider(); return p === 'groq' ? groqModel() : p === 'xai' ? xaiModel() : p === 'anthropic' ? anthropicModel() : p === 'gemini' ? geminiModel() : null; }
 
 // OpenAI-compatible chat completions (Groq and xAI share this shape — only base URL + model differ)
