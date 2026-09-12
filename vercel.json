@@ -9,6 +9,7 @@
     { "src": "/health", "dest": "/api/handler.js" },
     { "src": "/admin", "dest": "/api/handler.js" },
     { "src": "/bradar-api.js", "dest": "/public/bradar-api.js" },
+    { "src": "/(.*\\.(?:jpg|jpeg|png|webp|gif|svg|ico))", "dest": "/public/$1" },
     { "src": "/(.*)", "dest": "/public/index.html" }
   ]
 }
