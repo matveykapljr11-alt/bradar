@@ -227,11 +227,23 @@ async function handler(req, res) {
         await tg('answerPreCheckoutQuery', okProd
           ? { pre_checkout_query_id: upd.pre_checkout_query.id, ok: true }
           : { pre_checkout_query_id: upd.pre_checkout_query.id, ok: false, error_message: 'Товар недоступен' });
+      } else if (upd.message && Array.isArray(upd.message.photo) && upd.message.photo.length && /^\/setstart\b/.test(upd.message.caption || '')) {
+        // owner sends a photo captioned "/setstart" → store its Telegram file_id as the /start
+        // banner (no hosting needed; Telegram serves it). Owner-only, guarded by OWNER_TG_ID.
+        const owner = String(process.env.OWNER_TG_ID || '');
+        if (owner && String(upd.message.from && upd.message.from.id) === owner) {
+          const fileId = upd.message.photo[upd.message.photo.length - 1].file_id;   // largest size
+          try { await store.cacheSet('start_photo', fileId, 3650 * 86400); } catch (e) {}
+          await tg('sendMessage', { chat_id: upd.message.chat.id, text: '✅ Баннер для /start обновлён. Отправьте /start, чтобы проверить.' });
+        } else {
+          await tg('sendMessage', { chat_id: upd.message.chat.id, text: 'Команда /setstart доступна только владельцу бота.' });
+        }
       } else if (upd.message && typeof upd.message.text === 'string' && /^\/start\b/.test(upd.message.text)) {
         const app = process.env.APP_URL || '';
-        // START_IMAGE_URL (a public https image Telegram can fetch, e.g. our own /start.jpg) →
-        // send the banner as a photo with the copy as caption; otherwise a plain text message.
-        const img = process.env.START_IMAGE_URL || '';
+        // banner priority: the file_id set via /setstart → START_IMAGE_URL → plain text.
+        // sendPhoto accepts a Telegram file_id OR a public URL in `photo`, so both work.
+        let img = process.env.START_IMAGE_URL || '';
+        try { const stored = await store.cacheGet('start_photo'); if (stored) img = stored; } catch (e) {}
         const text = '👋 BRADAR — ИИ-медиапланер для рекламы в Telegram.\n\nОпишите свой бизнес одной фразой — подберём реальные каналы под вашу аудиторию (по метрикам Telemetr, а не наугад), проверим их и соберём медиаплан: распределение бюджета, прогноз охвата и переходов.\n\nГотово за пару минут — жмите кнопку ниже 👇';
         const kb = app ? { inline_keyboard: [[{ text: '📊 Собрать медиаплан', web_app: { url: app } }]] } : undefined;
         if (img) await tg('sendPhoto', { chat_id: upd.message.chat.id, photo: img, caption: text, reply_markup: kb });
