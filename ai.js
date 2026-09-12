@@ -18,24 +18,27 @@ const store = require('./store');
 const GROQ_KEY = process.env.GROQ_API_KEY || '';
 const XAI_KEY = process.env.XAI_API_KEY || process.env.GROK_API_KEY || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
+const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';   // free, no card, great RU
 
 // primary provider for cache keys / status; callLLM falls back across providers at runtime, so a
 // dead key (e.g. an xAI team out of credits → 403) transparently uses the next configured one.
 // preferred provider order: an explicit AI_PROVIDER wins; otherwise Anthropic (most reliable) >
-// Groq > xAI — so adding ANTHROPIC_API_KEY automatically takes over from a flaky Groq account.
+// Gemini (free, no card, strong RU) > Groq > xAI — so adding a key transparently takes over from a
+// flaky Groq account, and a dead key falls through to the next configured provider at runtime.
 function providerChain() {
-  const have = { anthropic: !!ANTHROPIC_KEY, groq: !!GROQ_KEY, xai: !!XAI_KEY };
+  const have = { anthropic: !!ANTHROPIC_KEY, gemini: !!GEMINI_KEY, groq: !!GROQ_KEY, xai: !!XAI_KEY };
   const order = [], add = n => { if (have[n] && !order.includes(n)) order.push(n); };
   const pref = (process.env.AI_PROVIDER || '').toLowerCase(); if (pref) add(pref);
-  ['anthropic', 'groq', 'xai'].forEach(add);
+  ['anthropic', 'gemini', 'groq', 'xai'].forEach(add);
   return order;
 }
 function provider() { return providerChain()[0] || null; }
-function enabled() { return !!(GROQ_KEY || XAI_KEY || ANTHROPIC_KEY); }
+function enabled() { return !!(GROQ_KEY || XAI_KEY || ANTHROPIC_KEY || GEMINI_KEY); }
 function groqModel() { return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; }
 function xaiModel() { return process.env.XAI_MODEL || 'grok-4'; }
 function anthropicModel() { return process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'; }
-function model() { const p = provider(); return p === 'groq' ? groqModel() : p === 'xai' ? xaiModel() : p === 'anthropic' ? anthropicModel() : null; }
+function geminiModel() { return process.env.GEMINI_MODEL || 'gemini-2.5-flash'; }
+function model() { const p = provider(); return p === 'groq' ? groqModel() : p === 'xai' ? xaiModel() : p === 'anthropic' ? anthropicModel() : p === 'gemini' ? geminiModel() : null; }
 
 // OpenAI-compatible chat completions (Groq and xAI share this shape — only base URL + model differ)
 async function callOpenAICompat(baseUrl, key, mdl, label, system, user, maxTokens, json) {
@@ -88,6 +91,8 @@ async function groqPickModel() {
 }
 const callGroq = async (s, u, m, json) => callOpenAICompat('https://api.groq.com/openai/v1/chat/completions', GROQ_KEY, await groqPickModel(), 'groq', s, u, m, json);
 const callXAI = (s, u, m, json) => callOpenAICompat('https://api.x.ai/v1/chat/completions', XAI_KEY, xaiModel(), 'xai', s, u, m, json);
+// Gemini exposes an OpenAI-compatible endpoint → reuse the shared caller (Bearer key, JSON mode).
+const callGemini = (s, u, m, json) => callOpenAICompat('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', GEMINI_KEY, geminiModel(), 'gemini', s, u, m, json);
 async function callAnthropic(system, user, maxTokens) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -106,6 +111,7 @@ async function callLLM(system, user, maxTokens = 1800, json = false) {
   const errs = [];
   for (const p of providerChain()) {
     try {
+      if (p === 'gemini') return await callGemini(system, user, maxTokens, json);
       if (p === 'groq') return await callGroq(system, user, maxTokens, json);
       if (p === 'xai') return await callXAI(system, user, maxTokens, json);
       if (p === 'anthropic') return await callAnthropic(system, user, maxTokens);
