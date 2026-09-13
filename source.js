@@ -42,6 +42,13 @@ function titleOnTopic(name, stems) {
   const words = String(name || '').toLowerCase().replace(/ё/g, 'е').split(/[^a-zа-яa-z0-9]+/).filter(Boolean);
   return words.some(w => stems.some(s => w.startsWith(s) || (w.length >= 4 && s.startsWith(w))));
 }
+// run fn over arr with at most `limit` in flight — keeps stats calls under Telemetr's 5 req/sec cap.
+async function mapLimit(arr, limit, fn) {
+  const out = new Array(arr.length); let i = 0;
+  async function worker() { while (i < arr.length) { const idx = i++; out[idx] = await fn(arr[idx], idx); } }
+  await Promise.all(Array.from({ length: Math.min(limit, arr.length || 1) }, worker));
+  return out;
+}
 // cache search results per term — Telemetr free tier is only 1000 requests/month and each подбор
 // fires ~15-20 searches; terms like «туризм»/«троицк» repeat across brands, so a 24h cache slashes
 // quota use. Only non-empty results are cached (never cache a quota-exhausted empty response).
@@ -416,8 +423,10 @@ async function fetchCandidates(input = {}) {
     } else {
       real = real.slice(0, 18);
     }
-    // enrich with REAL metrics (reach, posts, ER) from channel/stats — parallel, best-effort
-    const stats = await Promise.all(real.map(r => statsFor(pick(r, ['internal_id', 'id']))));
+    // enrich with REAL metrics (reach, posts, ER) from channel/stats. Batched (not one big
+    // Promise.all): Telemetr Pro caps at 5 req/sec, so 18 parallel stats calls get 429'd and come
+    // back empty → channels look "dead" and get culled to 1. mapLimit(4) keeps us under the cap.
+    const stats = await mapLimit(real, 4, r => statsFor(pick(r, ['internal_id', 'id'])));
     const reachOf = st => num(st && st.avg_post_views && (st.avg_post_views.avg_post_views != null ? st.avg_post_views.avg_post_views : st.avg_post_views));
     const postsOf = st => num(st && st.messages_count && st.messages_count.last_30_days);
     // drop dead / frozen channels: no posts in 30 days or zero views
@@ -426,11 +435,11 @@ async function fetchCandidates(input = {}) {
     const alive = p => postsOf(p.st) >= 1 && reachOf(p.st) > 0;
     const active = pairs.filter(p => postsOf(p.st) >= 2 && reachOf(p.st) > 0);   // healthy
     const semi = pairs.filter(alive);                                           // at least posting
+    // prefer healthy channels, but NEVER collapse the whole plan to the 1-2 that happened to return
+    // stats — if too few are verifiably alive, keep them all (reach is estimated from subs anyway).
     if (active.length >= 3) pairs = active;
     else if (semi.length >= 3) pairs = semi;
-    else if (semi.length) pairs = semi;
-    else if (active.length) pairs = active;
-    // else: keep all (stats unavailable — can't tell; don't wipe the result)
+    else pairs = allPairs;
     // never let the health cull drop the city's own channels — an alive local pablik posts less
     // than a national news feed but is exactly what a local brand needs; always keep it in.
     if (places.length) {
