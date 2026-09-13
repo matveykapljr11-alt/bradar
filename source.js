@@ -383,7 +383,15 @@ async function fetchCandidates(input = {}) {
         });
       }
     }
-    await collect(brandKw, 24, 6);                 // brand-specific keywords (most distinctive first)
+    // brand-specific keyword search (most distinctive first). For INTEREST-driven brands
+    // (online / area / high-ticket — the audience is a hobby/interest reachable nationally, e.g.
+    // «магазин футбольной атрибутики в Казани» → болельщики), add thematic channels ON TOP of any
+    // local ones, so a city shop gets local + thematic rather than only local. Local-point/delivery
+    // brands stay local-focused (a barbershop doesn't want national barbershop channels).
+    const _rm = String(input.reachModel || '').trim();
+    const _interest = _rm === 'online' || _rm === 'area' || _rm === 'high_ticket';
+    const kwTarget = (places.length && !_interest) ? 24 : real.length + 16;
+    await collect(brandKw, kwTarget, 6);
     trace('after-brandkw');
     if (real.length < 3) await collect(base, 10);  // vertical terms only if the brand yielded almost nothing
     if (real.length < 3) {
@@ -401,7 +409,13 @@ async function fetchCandidates(input = {}) {
     // order: local channels first, then local chats, then everything else by rank/size
     const geoRank = r => (r.__geoLocal ? (r.__isGroup ? 1 : 2) : 0);
     real.sort((a, b) => (geoRank(b) - geoRank(a)) || (a.__rank - b.__rank) || (num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members']))));
-    real = real.slice(0, 18);
+    // interest-driven brand WITH a city → keep a MIX in the stats slice (cap local, keep thematic),
+    // else 18+ local channels crowd the interest ones out before we even fetch their stats.
+    if (_interest && places.length) {
+      real = [...real.filter(r => r.__geoLocal).slice(0, 8), ...real.filter(r => !r.__geoLocal)].slice(0, 18);
+    } else {
+      real = real.slice(0, 18);
+    }
     // enrich with REAL metrics (reach, posts, ER) from channel/stats — parallel, best-effort
     const stats = await Promise.all(real.map(r => statsFor(pick(r, ['internal_id', 'id']))));
     const reachOf = st => num(st && st.avg_post_views && (st.avg_post_views.avg_post_views != null ? st.avg_post_views.avg_post_views : st.avg_post_views));
