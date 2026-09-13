@@ -90,6 +90,16 @@ function looksLikeSeller(name) {
   const t = String(name || '').toLowerCase();
   return /магазин|интернет-?магазин|шоурум|бутик|маркетплейс|аутлет|outlet|\bshop\b|\bstore\b|official|официальный магазин|wildberries|вайлдберриз|\bozon\b|распродаж/.test(t);
 }
+// junk ad inventory: betting/gambling/"free predictions" farms and keyword-stuffed multi-topic /
+// multi-region names (emoji separators, a pipe-list of 4+ cities). Terrible to advertise a real
+// brand in — drop them so thematic добор can't pull in «СТАВКИ🔷ПРОГНОЗЫ🔷1хбет🔷ДОГОВОРНЫЕ» etc.
+function looksLikeSpam(name) {
+  const t = String(name || '').toLowerCase();
+  if (/ставк|прогноз|экспресс|договорн|букмекер|\bбет\b|1x?бет|1xbet|мелбет|melbet|винлайн|париматч|марафонбет|казино|азино|\bсигнал|раскрутк|заработок|пассивн\w* доход|инвестиц|крипт\w* сигнал/.test(t)) return true;
+  const pipes = (t.match(/[|｜]/g) || []).length;                                   // «А | Б | В | Г | …» city farm
+  const emoji = (String(name).match(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/gu) || []).length;
+  return pipes >= 4 || emoji >= 5;
+}
 // common city aliases/abbreviations so channels are found however the town is written
 const CITY_ALIASES = {
   'москва': ['мск'], 'мск': ['москва'],
@@ -268,7 +278,8 @@ async function fetchCandidates(input = {}) {
           // a chat is weaker ad inventory than a channel (a post scrolls away vs stays in the feed)
           // → require more members for a group to be worth a pinned placement
           const need = isGroup ? Math.max(min, 3000) : min;
-          if (id && !seen.has(id) && (allowGroups || !isGroup) && num(pick(r, ['members_count', 'members'])) >= need && !looksLikeSeller(pick(r, ['title', 'name']))) {
+          const nm = pick(r, ['title', 'name']);
+          if (id && !seen.has(id) && (allowGroups || !isGroup) && num(pick(r, ['members_count', 'members'])) >= need && !looksLikeSeller(nm) && !looksLikeSpam(nm)) {
             r.__isGroup = isGroup; r.__rank = rank; seen.add(id); real.push(r);
             if (perTerm && ++added >= perTerm) break;  // don't let one generic word dominate
           }
