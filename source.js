@@ -97,8 +97,9 @@ function looksLikeSpam(name) {
   const t = String(name || '').toLowerCase();
   if (/ставк|прогноз|экспресс|договорн|букмекер|\bбет\b|1x?бет|1xbet|мелбет|melbet|винлайн|париматч|марафонбет|казино|азино|\bсигнал|раскрутк|заработок|пассивн\w* доход|инвестиц|крипт\w* сигнал/.test(t)) return true;
   const pipes = (t.match(/[|｜]/g) || []).length;                                   // «А | Б | В | Г | …» city farm
+  const commas = (t.match(/,/g) || []).length;                                     // «…Воронеж, Рязань, Липецк, …» multi-region list
   const emoji = (String(name).match(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/gu) || []).length;
-  return pipes >= 4 || emoji >= 5;
+  return pipes >= 4 || commas >= 4 || emoji >= 5;
 }
 // common city aliases/abbreviations so channels are found however the town is written
 const CITY_ALIASES = {
