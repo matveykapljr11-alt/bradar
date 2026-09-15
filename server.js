@@ -303,10 +303,14 @@ async function handler(req, res) {
               if (cls.vertical) b.vertical = cls.vertical;
               if (cls.keywords && cls.keywords.length) searchTerms = cls.keywords;
               if (!b.audience && cls.audience) b.audience = cls.audience;
-              // city in the description → local targeting, but only for B2C (people go to a
-              // local business); for B2B (a tool FOR businesses) the buyer is a professional
-              // niche reached nationally, so don't force local general channels.
-              if (cls.city && cls.audienceType !== 'b2b' && !String(b.geoCity || '').trim()) b.geoCity = cls.city;
+              // A city in the description means LOCAL targeting only for a location-bound business.
+              // For an online / e-commerce / high-ticket brand a mentioned city is usually the HQ
+              // («московский бренд, продаём по всей России») — NOT the target market — so injecting
+              // it drowns the plan in local news channels. Skip it for those (and for B2B, a
+              // national professional niche). A user-picked city in the brief is always respected.
+              const _rm = cls.reachModel || '';
+              const locationBound = _rm === 'local_point' || _rm === 'delivery' || _rm === 'area' || _rm === '';
+              if (cls.city && cls.audienceType !== 'b2b' && locationBound && !String(b.geoCity || '').trim()) b.geoCity = cls.city;
               // reach model decides how strictly to filter by city (точка у дома → local only;
               // high_ticket/online → thematic channels stay in play)
               if (cls.reachModel) b.reachModel = cls.reachModel;
