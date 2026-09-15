@@ -203,7 +203,10 @@ async function handler(req, res) {
           if (cls) {
             if (cls.vertical) fc.vertical = cls.vertical;
             if (cls.keywords && cls.keywords.length) fc.searchTerms = cls.keywords;
-            if (cls.city && !fc.geoCity) fc.geoCity = cls.city;
+            // mirror /api/analyze: only a location-bound brand gets its city injected (online/
+            // high-ticket = national, the mentioned city is the HQ). An explicit ?city= still wins.
+            const _lb = ['local_point', 'delivery', 'area', ''].includes(cls.reachModel || '');
+            if (cls.city && cls.audienceType !== 'b2b' && _lb && !fc.geoCity) fc.geoCity = cls.city;
             if (cls.reachModel && !fc.reachModel) fc.reachModel = cls.reachModel;
           }
         }
