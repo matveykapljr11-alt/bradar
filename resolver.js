@@ -17,6 +17,8 @@ const store = require('./store');
 const TAVILY_KEY = process.env.TAVILY_API_KEY || '';
 const BRAVE_KEY = process.env.BRAVE_API_KEY || '';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
+const RESOLVER_URL = (process.env.RESOLVER_URL || '').replace(/\/$/, '');   // MTProto userbot service (Render)
+const RESOLVER_TOKEN = process.env.RESOLVER_TOKEN || '';
 const RESOLVE_TTL = (Number(process.env.RESOLVE_TTL_DAYS) || 30) * 86400;
 const NEG_TTL = (Number(process.env.RESOLVE_NEG_TTL_DAYS) || 3) * 86400;   // retry unresolved sooner
 const MAX_CHANNELS = Number(process.env.RESOLVE_MAX) || 6;                 // per подбор (protect quotas)
@@ -25,7 +27,23 @@ const ACCEPT = Number(process.env.RESOLVE_ACCEPT) || 0.82;                 // mi
 const LEAD = Number(process.env.RESOLVE_LEAD) || 0.12;                     // min gap to #2 (avoid homonyms)
 
 function searchEnabled() { return !!TAVILY_KEY || !!BRAVE_KEY; }
-function enabled() { return !!BOT_TOKEN && searchEnabled(); }
+function enabled() { return !!RESOLVER_URL || (!!BOT_TOKEN && searchEnabled()); }
+// MTProto userbot service (bradar-resolver on Render): resolves ANY public channel on demand,
+// far higher coverage than web-search+getChat. Best-effort; falls through to the search path.
+async function resolveViaUserbot(title, subs) {
+  if (!RESOLVER_URL) return null;
+  try {
+    const u = new URL(RESOLVER_URL + '/resolve');
+    u.searchParams.set('title', String(title || '').slice(0, 64));
+    u.searchParams.set('subs', String(Number(subs) || 0));
+    if (RESOLVER_TOKEN) u.searchParams.set('token', RESOLVER_TOKEN);
+    const r = await fetch(u, { signal: AbortSignal.timeout(Number(process.env.RESOLVER_TIMEOUT_MS) || 9000) });
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d || !d.resolved || !d.username) return null;
+    return { username: d.username, link: d.link || 'https://t.me/' + d.username, adContact: d.adContact || '', confidence: d.confidence || 0.9, source: 'userbot' };
+  } catch (e) { return null; }
+}
 async function cacheGet(k) { try { return await store.cacheGet(k); } catch (e) { return null; } }
 async function cacheSet(k, v, ttl) { try { await store.cacheSet(k, v, ttl); } catch (e) {} }
 
@@ -140,6 +158,9 @@ async function resolveOne(ch, dbg) {
   const ck = 'resolve:' + String(iid || title).toLowerCase().slice(0, 60);
   const cached = await cacheGet(ck);
   if (cached !== null && cached !== undefined) return cached || null;   // false = confirmed unresolved (cached)
+  // MTProto userbot first (widest coverage); only fall back to web-search+getChat if it misses.
+  const ub = await resolveViaUserbot(title, subs);
+  if (ub) { if (dbg) { dbg.title = title; dbg.ok = true; dbg.via = 'userbot'; } await cacheSet(ck, ub, RESOLVE_TTL); return ub; }
   let result = null, scored = [];
   try {
     const cands = await searchCandidates(title);
