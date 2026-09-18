@@ -47,6 +47,18 @@
             c.username = String(r.username || '').replace(/^@/, ''); c.handle = '@' + c.username;
             c.link = r.link; c.resolved = true; c.contactConfidence = r.confidence;
             if (r.adContact) c.adContact = r.adContact;
+            // userbot metrics (free, unlimited) fill the card when Telemetr's stats cap left it blank
+            if (r.metrics && (r.metrics.reach || r.metrics.posts30)) {
+              var mt = r.metrics;
+              c.metrics = c.metrics || {};
+              if (mt.reach) { c.metrics.reach = mt.reach; c.reach = mt.reach; }
+              if (typeof mt.reactions === 'number') c.metrics.reactions = mt.reactions;
+              if (typeof mt.forwards === 'number') c.metrics.forwards = mt.forwards;
+              if (typeof mt.posts30 === 'number') c.metrics.posts30 = mt.posts30;
+              if (mt.er) { c.metrics.err = mt.er; c.eng = String(mt.er).replace('.', ',') + '%'; }
+              if (r.subs) c.subs = r.subs;
+              c._metricsSource = 'userbot';
+            }
           };
           patch(ch);
           try { if (Array.isArray(S.channels)) { var m = S.channels.filter(function (x) { return x.id === ch.id; })[0]; if (m) patch(m); } } catch (e) {}

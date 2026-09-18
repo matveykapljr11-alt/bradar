@@ -41,7 +41,7 @@ async function resolveViaUserbot(title, subs) {
     if (!r.ok) return null;
     const d = await r.json();
     if (!d || !d.resolved || !d.username) return null;
-    return { username: d.username, link: d.link || 'https://t.me/' + d.username, adContact: d.adContact || '', confidence: d.confidence || 0.9, source: 'userbot' };
+    return { username: d.username, link: d.link || 'https://t.me/' + d.username, adContact: d.adContact || '', confidence: d.confidence || 0.9, metrics: d.metrics || null, subs: d.subs || 0, source: 'userbot' };
   } catch (e) { return null; }
 }
 async function cacheGet(k) { try { return await store.cacheGet(k); } catch (e) { return null; } }

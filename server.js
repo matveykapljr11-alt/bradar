@@ -362,7 +362,7 @@ async function handler(req, res) {
         let r = null;
         try { r = await resolver.resolveOne({ name: rb.name, subs: rb.subs, internalId: String(rb.id || '').replace(/^tm/, '') }); } catch (e) {}
         return send(res, 200, r
-          ? { resolved: true, username: r.username, link: r.link, adContact: r.adContact || '', confidence: r.confidence }
+          ? { resolved: true, username: r.username, link: r.link, adContact: r.adContact || '', confidence: r.confidence, metrics: r.metrics || null, subs: r.subs || 0 }
           : { resolved: false });
       }
       if (p === '/api/alternatives' && req.method === 'POST') {
