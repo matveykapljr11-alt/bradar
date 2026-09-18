@@ -275,6 +275,8 @@ async function handler(req, res) {
           catalog: engine.catalogStats(), requiresAuth: !!BOT_TOKEN, devAuth: DEV_AUTH,
           products: PRODUCTS, user: { id: user.id, name: user.name, verified: user.verified },
           pro: await store.getGrants(user.id),
+          // owner (OWNER_TG_ID) sees the paid deal kit unlocked without buying — for demo / operator use
+          owner: !!(process.env.OWNER_TG_ID && user.verified && String(user.id) === String(process.env.OWNER_TG_ID)),
         });
       }
       if (p === '/api/analyze' && (req.method === 'POST' || req.method === 'GET')) {
