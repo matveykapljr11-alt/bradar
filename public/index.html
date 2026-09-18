@@ -1399,6 +1399,8 @@ function dealKit(c){
 }
 function realChannelDetail(c){
   const m=c.metrics||{};
+  // real metrics present (Telemetr or userbot) vs reach-only estimate → don't claim "реальные" for a guess
+  const hasReal=!!(m.posts30||m.reactions||m.err||c.eng||c._metricsSource);
   const growth=m.growth30?((m.growth30>0?'+':'')+fmt(m.growth30)):'—';
   const grades={A:'высокая',B:'хорошая',C:'средняя',D:'ниже средней',E:'низкая',F:'низкая'};
   const gk=(m.adsGrade||'').charAt(0).toUpperCase();
@@ -1416,9 +1418,9 @@ function realChannelDetail(c){
   </div>
   <div class="body" style="margin-top:-42px;position:relative;z-index:2;display:flex;flex-direction:column;gap:14px">
     <div class="card lg">
-      <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:11px">Реальные показатели · Telemetr</div>
+      <div style="font:700 13px Manrope;color:var(--navy);margin-bottom:11px">${hasReal?'Реальные показатели':'Оценка охвата · детальных данных пока нет'}</div>
       <div class="mgrid">
-        <div class="cell"><div class="v tnum">${fmt(m.reach||c.reach)}</div><div class="k">средний охват поста</div></div>
+        <div class="cell"><div class="v tnum">${hasReal?fmt(m.reach||c.reach):'≈'+fmt(m.reach||c.reach)}</div><div class="k">средний охват поста</div></div>
         <div class="cell"><div class="v tnum">${c.eng||(m.err?String(Math.round(m.err*10)/10).replace('.',',')+'%':'—')}</div><div class="k">вовлечённость (ER)</div></div>
         <div class="cell"><div class="v tnum">${m.posts30||'—'}</div><div class="k">постов за 30 дней</div></div>
         <div class="cell"><div class="v tnum">${m.reactions||'—'}</div><div class="k">реакций на пост</div></div>
