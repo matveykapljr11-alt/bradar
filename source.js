@@ -621,7 +621,12 @@ async function probe(term) {
     const id = rows[0] && pick(rows[0], ['internal_id', 'id']);
     if (id) {
       const st = await apiGet('/v1/channel/stats', { internal_id: id });
-      stats = { internal_id: id, keys: st && typeof st === 'object' ? Object.keys(st) : [] };
+      stats = {
+        internal_id: id, keys: st && typeof st === 'object' ? Object.keys(st) : [],
+        // dump the actual sub-structures the metrics mapping reads, to spot a field-shape change
+        avg_post_views: st && st.avg_post_views, messages_count: st && st.messages_count,
+        engagement: st && st.engagement, err_percent: st && st.err_percent,
+      };
       resolve = await resolveUsername(id);
     }
   } catch (e) { stats = { error: String(e.message || e) }; }
