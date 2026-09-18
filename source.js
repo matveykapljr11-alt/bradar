@@ -245,7 +245,7 @@ async function statsFor(id) {
   // 18 stats calls per подбор — the biggest quota drain; metrics are stable for hours → cache 12h
   const ck = 'tms:st:' + id;
   try { const c = await store.cacheGet(ck); if (c && typeof c === 'object') return c; } catch (e) {}
-  try { const st = await apiGet('/v1/channel/stats', { internal_id: id }); if (st) { try { await store.cacheSet(ck, st, (Number(process.env.TELEMETR_STATS_TTL_H) || 12) * 3600); } catch (e) {} } return st; }
+  try { const st = await apiGet('/v1/channel/stats', { internal_id: id }); if (st) { try { await store.cacheSet(ck, st, (Number(process.env.TELEMETR_STATS_TTL_H) || 720) * 3600); } catch (e) {} } return st; }
   catch (e) { return null; }
 }
 async function fetchCandidates(input = {}) {
@@ -428,12 +428,15 @@ async function fetchCandidates(input = {}) {
     // order: local channels first, then local chats, then everything else by rank/size
     const geoRank = r => (r.__geoLocal ? (r.__isGroup ? 1 : 2) : 0);
     real.sort((a, b) => (geoRank(b) - geoRank(a)) || (a.__rank - b.__rank) || (num(pick(b, ['members_count', 'members'])) - num(pick(a, ['members_count', 'members']))));
+    // how many candidates we pull stats for. Each DISTINCT channel counts against Telemetr's
+    // "unique channels / month" cap (Pro = 100), so keep this lean; raise it on Advanced/Team.
+    const STATS_MAX = Number(process.env.TELEMETR_STATS_MAX) || 14;
     // interest-driven brand WITH a city → keep a MIX in the stats slice (cap local, keep thematic),
-    // else 18+ local channels crowd the interest ones out before we even fetch their stats.
+    // else many local channels crowd the interest ones out before we even fetch their stats.
     if (_interest && places.length) {
-      real = [...real.filter(r => r.__geoLocal).slice(0, 8), ...real.filter(r => !r.__geoLocal)].slice(0, 18);
+      real = [...real.filter(r => r.__geoLocal).slice(0, Math.ceil(STATS_MAX / 2)), ...real.filter(r => !r.__geoLocal)].slice(0, STATS_MAX);
     } else {
-      real = real.slice(0, 18);
+      real = real.slice(0, STATS_MAX);
     }
     // enrich with REAL metrics (reach, posts, ER) from channel/stats. Batched (not one big
     // Promise.all): Telemetr Pro caps at 5 req/sec, so 18 parallel stats calls get 429'd and come
