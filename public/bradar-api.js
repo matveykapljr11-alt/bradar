@@ -161,7 +161,7 @@
 
   /* --- Telegram Stars paywall: gate export / contacts behind PRO when online --- */
   function isPro() { try { return !!(window.BRADAR.config && window.BRADAR.config.pro && window.BRADAR.config.pro.pro_export); } catch (e) { return false; } }
-  function proPrice() { try { return window.BRADAR.config.products.pro_export.stars || 150; } catch (e) { return 150; } }
+  function proPrice() { try { return window.BRADAR.config.products.pro_export.stars || 400; } catch (e) { return 400; } }
   function refreshConfig() { api('/api/config').then(function (c) { window.BRADAR.config = c; }).catch(function () {}); }
   function toastMsg(m) { try { if (typeof toast === 'function') toast(m); } catch (e) {} }
   function buyPro() {
@@ -180,7 +180,7 @@
     var act = el.getAttribute('data-act');
     if (GATED[act] && window.BRADAR.online && !isPro()) {
       e.preventDefault(); e.stopPropagation();
-      var msg = 'Экспорт и контакты — в BRADAR PRO (' + proPrice() + ' ⭐). Оформить?';
+      var msg = 'Реальные контакты каналов + готовые сообщения для размещения — BRADAR PRO (' + proPrice() + ' ⭐, доступ на 30 дней). Оформить?';
       if (window.Telegram && Telegram.WebApp && Telegram.WebApp.showConfirm) {
         Telegram.WebApp.showConfirm(msg, function (ok) { if (ok) buyPro(); });
       } else { toastMsg('BRADAR PRO — ' + proPrice() + ' ⭐: экспорт и контакты'); buyPro(); }

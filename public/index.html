@@ -1336,7 +1336,7 @@ function creativeCard(c){
 }
 // paid layer: the deal kit is unlocked in the offline demo, or for PRO users online.
 function dealUnlocked(){ try{ if(!window.BRADAR||!window.BRADAR.online) return true; return !!(window.BRADAR.isPro&&window.BRADAR.isPro()); }catch(e){ return true; } }
-function dealStars(){ try{ return (window.BRADAR.config.products.pro_export.stars)||150; }catch(e){ return 150; } }
+function dealStars(){ try{ return (window.BRADAR.config.products.pro_export.stars)||400; }catch(e){ return 400; } }
 // outreach message + deal tips: AI-written (S._salesKit) online, built-in template in the demo.
 function outreachFor(c){
   const raw=(S._salesKit&&S._salesKit.outreach)||('Здравствуйте! Пишу по поводу рекламного размещения в {{канал}}.\nМы — '+(S.brand.name||'бренд')+'. Ищем нативный пост нашей аудитории.\nПодскажите, пожалуйста: стоимость размещения, свободные даты и средний охват поста за последние 24 часа?\nКреатив предоставим с маркировкой ОРД (erid). Спасибо!');
