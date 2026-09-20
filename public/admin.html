@@ -61,6 +61,21 @@
   function dt(ms){ if(!ms) return '—'; try{ return new Date(ms).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function card(v,l,cls){ return '<div class="card '+(cls||'')+'"><b class="tnum">'+v+'</b><span>'+l+'</span></div>'; }
+  function funnelHtml(f){
+    var st=(f.start||{}), op=(f.open||{}), an=(f.analyze||{});
+    function pct(a,b){ a=Number(a)||0;b=Number(b)||0; return b?Math.round(a/b*100):0; }
+    function step(label,val,total,prev){
+      var conv = prev!=null ? ' <span class="mut" style="font-size:11px">('+pct(val,prev)+'% от пред.)</span>' : '';
+      return '<div class="card"><b class="tnum">'+fmt(val)+'</b><span>'+label+conv+'</span></div>';
+    }
+    return '<div class="sec">Воронка (всего · сегодня в скобках)</div>'+
+      '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">'+
+        step('/start — открыли бота',st.total,null,null)+
+        step('открыли апп',op.total,null,st.total)+
+        step('сделали подбор',an.total,null,op.total)+
+      '</div>'+
+      '<div class="mut" style="font-size:12px;margin:-8px 0 4px">сегодня: /start '+fmt(st.today)+' → апп '+fmt(op.today)+' → подбор '+fmt(an.today)+'</div>';
+  }
 
   function chanLine(c){
     var h = c.handle ? ' <a href="https://t.me/'+esc(String(c.handle).replace(/^@/,''))+'" target="_blank">'+esc(c.handle)+'</a>' : '';
@@ -128,6 +143,7 @@
         card(fmt(d.plans),'сохранённых планов')+
         card(esc(d.storage),'хранилище')+
       '</div>'+
+      funnelHtml(d.funnel||{})+
       '<div class="sec">PRO-покупки</div><div class="pro">'+proHtml+'</div>'+
       '<div class="sec">Запросы пользователей · '+fmt((d.log||[]).length)+' (клик — детали: что ввели и что выдало)</div>'+
       '<div class="filter"><input id="flt" placeholder="фильтр: бренд, город, юзер…" value="'+esc(FILTER)+'"><span class="mut">окно лога: '+fmt(req.window)+'</span></div>'+

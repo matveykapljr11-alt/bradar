@@ -173,10 +173,11 @@ async function handler(req, res) {
     if (p === '/api/admin/stats') {
       if (!isAdmin(req, url)) return send(res, 403, { error: 'forbidden' });
       const base = await store.adminStats();
-      let req2 = {}, log = [];
+      let req2 = {}, log = [], funnel = {};
       try { req2 = await store.requestStats(); } catch (e) {}
+      try { funnel = await store.funnelStats(); } catch (e) {}
       try { log = await store.recentRequests(Number(url.searchParams.get('limit')) || 200); } catch (e) {}
-      return send(res, 200, Object.assign(base, { req: req2, log }));
+      return send(res, 200, Object.assign(base, { req: req2, funnel, log }));
     }
     // admin-only diagnostic: verifies the real channel source actually returns data.
     // Gated behind ADMIN_TOKEN so it can't be used to burn Telemetr quota or probe
@@ -242,6 +243,7 @@ async function handler(req, res) {
           await tg('sendMessage', { chat_id: upd.message.chat.id, text: 'Команда /setstart доступна только владельцу бота.' });
         }
       } else if (upd.message && typeof upd.message.text === 'string' && /^\/start\b/.test(upd.message.text)) {
+        try { await store.bumpFunnel('start'); } catch (e) {}   // funnel: bot opened
         const app = process.env.APP_URL || '';
         // banner priority: the file_id set via /setstart → START_IMAGE_URL → plain text.
         // sendPhoto accepts a Telegram file_id OR a public URL in `photo`, so both work.
@@ -269,6 +271,7 @@ async function handler(req, res) {
       if (!user) return send(res, 401, { error: 'unauthorized' });
 
       if (p === '/api/config' && req.method === 'GET') {
+        try { await store.bumpFunnel('open'); } catch (e) {}   // funnel: mini-app opened (config loads on init)
         return send(res, 200, {
           ai: ai.enabled(), aiProvider: ai.provider(), model: ai.enabled() ? ai.model() : null,
           dataSource: source.enabled() ? 'telemetr' : 'seed',
@@ -293,6 +296,7 @@ async function handler(req, res) {
           return send(res, 429, { error: 'rate', message: 'Слишком много подборов за сегодня — попробуйте завтра.' });
         if (!(await underLimit('ang', 'all', Number(process.env.ANALYZE_GLOBAL_DAY) || 300, 86400)))
           return send(res, 503, { error: 'busy', message: 'Сервис под высокой нагрузкой — загляните чуть позже.' });
+        try { await store.bumpFunnel('analyze'); } catch (e) {}   // funnel: подбор started
         const t0 = Date.now();
         // Semantic understanding: when the brand is described vaguely (no direct keywords),
         // ask the model for the real niche + search phrases so we still find the right channels.

@@ -142,6 +142,34 @@ module.exports = {
     fileFlush(); return d.rl[key].n;
   },
 
+  // ---- funnel counters (bot start → app open → подбор) for the admin dashboard ----
+  async bumpFunnel(name) {
+    const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    if (useRedis) {
+      try { await redisCmd(['INCR', 'bradar:fn:' + name]); const dk = 'bradar:fn:' + name + ':' + day; await redisCmd(['INCR', dk]); try { await redisCmd(['EXPIRE', dk, '5184000']); } catch (e) {} } catch (e) {}
+      return;
+    }
+    const d = fileDb(); if (!d.fn) d.fn = {}; d.fn[name] = (d.fn[name] || 0) + 1; const dk = name + ':' + day; d.fn[dk] = (d.fn[dk] || 0) + 1; fileFlush();
+  },
+  // { start:{total,today}, open:{...}, analyze:{...} }
+  async funnelStats() {
+    const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const names = ['start', 'open', 'analyze'];
+    const out = {};
+    if (useRedis) {
+      for (const n of names) {
+        let total = 0, today = 0;
+        try { total = Number(await redisCmd(['GET', 'bradar:fn:' + n])) || 0; } catch (e) {}
+        try { today = Number(await redisCmd(['GET', 'bradar:fn:' + n + ':' + day])) || 0; } catch (e) {}
+        out[n] = { total, today };
+      }
+      return out;
+    }
+    const d = fileDb().fn || {};
+    names.forEach(n => { out[n] = { total: d[n] || 0, today: d[n + ':' + day] || 0 }; });
+    return out;
+  },
+
   // ---- request log (admin analytics) ----
   // Append one analyze record for the admin dashboard. Best-effort: never throws into a request.
   // Keeps the newest LOG_KEEP (default 500) records + lifetime/day counters.
