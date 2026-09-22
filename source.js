@@ -95,7 +95,11 @@ function looksLikeSeller(name) {
 // brand in — drop them so thematic добор can't pull in «СТАВКИ🔷ПРОГНОЗЫ🔷1хбет🔷ДОГОВОРНЫЕ» etc.
 function looksLikeSpam(name) {
   const t = String(name || '').toLowerCase();
-  if (/ставк|прогноз|экспресс|договорн|букмекер|\bбет\b|1x?бет|1xbet|мелбет|melbet|винлайн|париматч|марафонбет|казино|азино|\bсигнал|раскрутк|заработок|пассивн\w* доход|инвестиц|крипт\w* сигнал/.test(t)) return true;
+  if (/ставк|прогноз|экспресс|договорн|букмекер|\bбет\b|1x?бет|1xbet|мелбет|melbet|винлайн|париматч|марафонбет|казино|азино|\bсигнал|раскрутк|заработок|пассивн\S* доход|инвестиц|крипт\S* сигнал/.test(t)) return true;
+  // ad-exchange / giveaway / generic-telegram junk — not a real audience to advertise to:
+  // «РЕКЛАМА 🏆 БИРЖА 🏆 КАНАЛЫ», «Раздача Телеграмм Премиум», «Анонимный чат», взаимопиар, etc.
+  if (/взаимопиар|обмен рекламой|продажа рекламы|куплю.?продам|каталог каналов|раздач|халяв|бесплатн\S* (премиум|premium|подписчик)|анонимн\S* чат|накрут|\bвп\b/.test(t)) return true;
+  if (/биржа/.test(t) && /реклам|канал/.test(t)) return true;                       // ad-exchange listing
   const pipes = (t.match(/[|｜]/g) || []).length;                                   // «А | Б | В | Г | …» city farm
   const commas = (t.match(/,/g) || []).length;                                     // «…Воронеж, Рязань, Липецк, …» multi-region list
   const emoji = (String(name).match(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/gu) || []).length;
