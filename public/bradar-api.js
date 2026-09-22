@@ -69,6 +69,28 @@
   }
   window.BRADAR.resolveContact = resolveContact;
 
+  /* --- "Открыть" that resolves the real @username on demand, then opens the channel directly --- */
+  function resolveThenOpen(ch) {
+    try {
+      if (!ch) return;
+      var open = (typeof openUrl === 'function') ? openUrl : function (u) { try { window.open(u, '_blank'); } catch (e) {} };
+      var uname = ch.username ? String(ch.username).replace(/^@/, '') : '';
+      if (uname) { open('https://t.me/' + uname); return; }             // already resolved → open t.me
+      try { if (typeof toast === 'function') toast('Ищем канал…'); } catch (e) {}
+      api('/api/resolve', { method: 'POST', body: JSON.stringify({ name: ch.name, subs: ch.subs, id: ch.id }) })
+        .then(function (r) {
+          if (r && r.resolved && r.username) {
+            var u = String(r.username).replace(/^@/, '');
+            try { ch.username = u; ch.handle = '@' + u; ch.link = r.link; ch.resolved = true; } catch (e) {}
+            open('https://t.me/' + u);
+          } else if (ch.link && /telemetr\.io/.test(ch.link)) { open(ch.link); }
+          else { try { if (typeof copy === 'function') copy(ch.name, 'Канал не нашёлся автоматически — название скопировано, поищите в Telegram'); } catch (e) {} }
+        })
+        .catch(function () { try { if (typeof toast === 'function') toast('Не удалось открыть'); } catch (e) {} });
+    } catch (e) {}
+  }
+  window.BRADAR.resolveThenOpen = resolveThenOpen;
+
   /* --- config + hydrate state from server --- */
   api('/api/config').then(function (cfg) {
     window.BRADAR.online = true; window.BRADAR.config = cfg;

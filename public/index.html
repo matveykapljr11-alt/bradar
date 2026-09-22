@@ -250,7 +250,13 @@ function chUname(c){ return c && c.handle ? c.handle.replace('@','') : ''; }
 function chUrl(c){ const u=chUname(c); return u.length>=3 ? 'https://t.me/'+u : ''; }
 function chUrlLabel(c){ const u=chUname(c); return u.length>=3 ? 't.me/'+u : 'найти в Telegram →'; }
 function openUrl(u){ if(!u) return false; try{ if(tg&&/t\.me\//.test(u)&&tg.openTelegramLink){tg.openTelegramLink(u);return true;} }catch(e){} try{ if(tg&&tg.openLink){tg.openLink(u);return true;} }catch(e){} try{ window.open(u,'_blank'); return true; }catch(e){} return false; }
-function openChannelLink(c){ const u=chUrl(c); if(u){ openUrl(u); return; } if(c){ try{ copy(c.name,'Название канала скопировано — найдите его в поиске Telegram'); return; }catch(e){} } toast('Ссылка недоступна'); }
+function openChannelLink(c){
+  if(!c){ toast('Ссылка недоступна'); return; }
+  const u=chUrl(c); if(u){ openUrl(u); return; }                                  // resolved → open t.me directly
+  if(window.BRADAR && window.BRADAR.online && window.BRADAR.resolveThenOpen){ window.BRADAR.resolveThenOpen(c); return; }  // resolve the @username, then open the channel by link
+  if(c.link && /telemetr\.io/.test(c.link)){ openUrl(c.link); return; }
+  try{ copy(c.name,'Название канала скопировано — найдите его в поиске Telegram'); }catch(e){}
+}
 // placement price: real quoted price when known, otherwise BRADAR's own estimate (labelled)
 // readable channel category — free Telemetr gives no category, so we show a topic label or
 // "Локальный канал", never the raw "Telegram-канал" placeholder
