@@ -286,4 +286,44 @@ async function enrich(input, plan) {
   return plan;
 }
 
-module.exports = { enrich, classify, geoExpand, enabled, provider, model, lastClassifyError, groqModels };
+/* ---- brand-fit for the CHECKER: does THIS channel fit THIS brand? ----
+ * Reads the channel's real recent posts (what it's about / who reads it) and judges fit
+ * for the brand with reasoning — not a bare %. Core rule from the buyer interviews:
+ * ядро аудитории = кто РЕАЛЬНО купил бы продукт, а не просто общая тема. */
+const FIT_SYSTEM = `Ты — опытный медиабайер по рекламе в Telegram-каналах. Тебе дают описание БРЕНДА и РЕАЛЬНЫЕ данные одного канала (название, описание, примеры недавних постов). Определи, подходит ли этот канал бренду для размещения рекламы.
+Правила:
+— Опирайся ТОЛЬКО на переданные посты и описание. НЕ выдумывай факты о канале.
+— Ядро аудитории = кто реально заплатил бы за продукт бренда, а не просто пересечение по общей теме. Общая тематика без покупательского интента — это "medium" или "poor".
+— Честно: если канал не подходит — так и скажи и объясни почему. Одна льстивая ошибка убивает доверие.
+— Если постов мало/непонятно о чём канал — fit "medium" и низкая уверенность, скажи что данных мало.
+Отвечай СТРОГО одним JSON-объектом, без markdown, на русском.`;
+
+async function brandFit(brand, ch) {
+  if (!enabled()) return null;
+  const posts = (ch.posts || []).filter(t => t && t.trim()).slice(0, 12).map(t => '• ' + String(t).slice(0, 240)).join('\n');
+  const user = [
+    'БРЕНД: ' + String(brand || '').slice(0, 800),
+    '',
+    'КАНАЛ:',
+    'Название: ' + (ch.title || ''),
+    'Подписчиков: ' + (ch.subs || 0),
+    ch.about ? ('Описание: ' + String(ch.about).slice(0, 400)) : '',
+    '',
+    'ПРИМЕРЫ ПОСТОВ:',
+    posts || '(постов не получено)',
+    '',
+    'Верни JSON вида:',
+    '{"fit":"good|medium|poor","fitScore":0-100,"audience":"кто реально читает канал, 1 фраза","reason":"2-3 предложения: почему подходит или нет ИМЕННО этому бренду, с опорой на посты"}',
+  ].filter(Boolean).join('\n');
+  const text = await callLLM(FIT_SYSTEM, user, 700, true);
+  const o = extractJson(text);
+  let fit = String(o.fit || '').toLowerCase();
+  if (['good', 'medium', 'poor'].indexOf(fit) < 0) fit = 'medium';
+  let score = Math.round(Number(o.fitScore));
+  if (!isFinite(score)) score = fit === 'good' ? 78 : fit === 'poor' ? 28 : 52;
+  score = Math.max(0, Math.min(100, score));
+  const label = fit === 'good' ? 'Подходит бренду' : fit === 'poor' ? 'Не подходит бренду' : 'Подходит с оговорками';
+  return { fit, fitScore: score, fitLabel: label, audience: String(o.audience || '').slice(0, 200), reason: String(o.reason || '').slice(0, 600), source: provider() };
+}
+
+module.exports = { enrich, classify, geoExpand, brandFit, enabled, provider, model, lastClassifyError, groqModels };

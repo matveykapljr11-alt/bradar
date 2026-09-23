@@ -381,19 +381,30 @@ async function handler(req, res) {
         if (!who) return send(res, 401, { error: 'auth', message: 'Откройте приложение внутри Telegram.' });
         if (!admin && !(await underLimit('chk', who.id, Number(process.env.CHECK_LIMIT_DAY) || 60, 86400)))
           return send(res, 429, { error: 'rate', message: 'Слишком много проверок за сегодня — попробуйте завтра.' });
-        const cb = admin ? { channel: url.searchParams.get('channel') || url.searchParams.get('q') || '' } : await readBody(req);
-        const resolver = require('./resolver'); const vet = require('./vet');
+        const cb = admin ? { channel: url.searchParams.get('channel') || url.searchParams.get('q') || '', brand: url.searchParams.get('brand') || '' } : await readBody(req);
+        const resolver = require('./resolver'); const vet = require('./vet'); const ai = require('./ai');
         const data = await resolver.channelData(cb.channel || cb.username || cb.link || '');
         try { await store.bumpFunnel('check'); } catch (e) {}
         if (!data) return send(res, 200, { ok: false, error: 'Канал не найден или это не публичный канал. Проверьте ссылку.' });
         const verdict = vet.vetChannel(data);
         const safety = vet.brandSafety((data.metrics && data.metrics.posts) || []);
         const m = data.metrics || {};
+        // brand-fit (optional): only when a brand is described — reads the channel's real posts
+        let brandfit = null;
+        const brand = String(cb.brand || '').trim();
+        if (brand.length >= 8) {
+          try {
+            brandfit = await ai.brandFit(brand, {
+              title: data.title, about: data.about, subs: data.subs,
+              posts: (m.posts || []).map(p => p && p.t).filter(Boolean),
+            });
+          } catch (e) { brandfit = { error: 'Не удалось оценить соответствие бренду' }; }
+        }
         return send(res, 200, {
           ok: true, username: data.username, title: data.title, link: data.link, subs: data.subs,
           verified: !!data.verified, adContact: data.adContact || '',
           metrics: { reach: m.reach || 0, er: m.er || 0, cv: m.cv || 0, adRatio: m.adRatio || 0, posts30: m.posts30 || 0, reactions: m.reactions || 0, sample: m.sample || 0 },
-          verdict, safety,
+          verdict, safety, brandfit,
         });
       }
       if (p === '/api/alternatives' && req.method === 'POST') {
