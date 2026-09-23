@@ -265,10 +265,12 @@ async function handler(req, res) {
       return send(res, 200, { ok: true });
     }
 
-    // everything below /api requires an authenticated user
+    // everything below /api requires an authenticated user — except the admin
+    // GET on /api/check (token-gated), used to test verdicts by URL before the UI.
     if (p.startsWith('/api/')) {
       const user = authUser(req);
-      if (!user) return send(res, 401, { error: 'unauthorized' });
+      const adminCheck = p === '/api/check' && req.method === 'GET' && isAdmin(req, url);
+      if (!user && !adminCheck) return send(res, 401, { error: 'unauthorized' });
 
       if (p === '/api/config' && req.method === 'GET') {
         try { await store.bumpFunnel('open'); } catch (e) {}   // funnel: mini-app opened (config loads on init)
