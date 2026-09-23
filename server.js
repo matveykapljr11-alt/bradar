@@ -404,6 +404,7 @@ async function handler(req, res) {
           ok: true, username: data.username, title: data.title, link: data.link, subs: data.subs,
           verified: !!data.verified, adContact: data.adContact || '',
           metrics: { reach: m.reach || 0, er: m.er || 0, cv: m.cv || 0, adRatio: m.adRatio || 0, posts30: m.posts30 || 0, reactions: m.reactions || 0, sample: m.sample || 0 },
+          network: m.network || { fwd: [], mentions: [] },   // for cross-channel overlap detection
           verdict, safety, brandfit,
         });
       }

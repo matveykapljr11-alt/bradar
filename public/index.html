@@ -865,6 +865,42 @@ function verdictCard(r){
   </div>`;
 }
 
+// OVERLAP: from the checked list, find channel PAIRS that likely share audience — based on
+// observable evidence (mutual repost/mention, shared ad contact, common sources), never a made-up %.
+function normU(s){ return String(s||'').toLowerCase().replace(/^@/,'').replace(/^https?:\/\/(t|telegram)\.me\//i,'').split(/[/?#]/)[0]; }
+function overlapPairs(results){
+  const ok=(results||[]).filter(function(r){return r&&r.ok&&r.username;});
+  const pairs=[];
+  for(let i=0;i<ok.length;i++) for(let j=i+1;j<ok.length;j++){
+    const a=ok[i],b=ok[j], na=normU(a.username), nb=normU(b.username);
+    const na2=(a.network||{}), nb2=(b.network||{});
+    const setA={}, setB={};
+    (na2.fwd||[]).concat(na2.mentions||[]).forEach(function(u){setA[normU(u)]=1;});
+    (nb2.fwd||[]).concat(nb2.mentions||[]).forEach(function(u){setB[normU(u)]=1;});
+    const reasons=[]; let strong=false;
+    if(setA[nb]||setB[na]){ reasons.push('репостят или упоминают друг друга'); strong=true; }
+    const adA=normU(a.adContact), adB=normU(b.adContact);
+    if(adA&&adA===adB){ reasons.push('общий рекламный контакт @'+adA); strong=true; }
+    const common=Object.keys(setA).filter(function(x){return setB[x]&&x!==na&&x!==nb;});
+    if(common.length>=2) reasons.push('репостят одни и те же каналы: '+common.slice(0,3).map(function(x){return '@'+x;}).join(', '));
+    if(reasons.length) pairs.push({a:a.username,b:b.username,reasons:reasons,strong:strong||reasons.length>=2});
+  }
+  return pairs;
+}
+function overlapCard(pairs){
+  if(!pairs.length) return '';
+  const rows=pairs.map(function(p){
+    const cl=p.strong?'#D8322B':'#B87400';
+    return `<div style="padding:9px 0;border-top:1px solid var(--line)">
+      <div style="font:800 12.5px Manrope;color:var(--navy);margin-bottom:3px">@${esc(p.a)} ↔ @${esc(p.b)}</div>
+      <div style="font:500 12px/1.5 Manrope;color:${cl}">${p.reasons.map(esc).join('; ')}.</div></div>`;
+  }).join('');
+  return `<div class="card" style="border-color:#E9A10055;background:#FFFBF2">
+    <div style="font:800 13px Manrope;color:#B87400;margin-bottom:2px">⚠ Возможное пересечение аудиторий</div>
+    <div style="font:500 12px/1.5 Manrope;color:rgba(16,38,74,.6)">Разместиться в этих каналах вместе — риск заплатить дважды за одних и тех же людей. Оценка по репостам, упоминаниям и рекламным контактам, а не по спискам подписчиков.</div>
+    ${rows}</div>`;
+}
+
 SCREENS.check=function(){
   const c=S.check; const online=!!(window.BRADAR&&window.BRADAR.online);
   const res=(c.results||[]).slice().sort((a,b)=>{
@@ -899,7 +935,8 @@ https://t.me/anotherchannel" style="min-height:96px">${esc(c.input)}</textarea>
     <p class="subcta">${online?'Читаем открытые данные канала: просмотры, реакции, частоту и рекламу постов':'Демо-режим — реальная проверка работает внутри Telegram'}</p>
     ${c.error?`<div class="card" style="border-color:#F3C9C6;color:var(--red);font:500 12.5px Manrope;margin-top:12px">${esc(c.error)}</div>`:''}
     ${loadingRows}
-    ${res.length?`<div style="margin-top:18px;display:flex;flex-direction:column;gap:12px">${res.map(verdictCard).join('')}</div>`:''}
+    ${(!c.loading&&res.length>=2)?`<div style="margin-top:18px">${overlapCard(overlapPairs(res))}</div>`:''}
+    ${res.length?`<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">${res.map(verdictCard).join('')}</div>`:''}
     ${(!c.ran&&!c.loading)?`<div style="margin-top:20px">
       <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin-bottom:9px">Что вы получите</div>
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -2278,7 +2315,7 @@ function demoVerdict(link,i,brand){
       metrics:{reach:4600,er:1.4,cv:0.29,adRatio:38,posts30:18},safety:[]},
   ];
   const p=presets[seed];
-  return {_q:link,ok:true,username:link,title:'@'+link,link:'https://t.me/'+link,subs:[42000,50000,50000][seed],verified:false,adContact:'@'+link+'_ads',metrics:p.metrics,verdict:{score:p.score,verdict:p.verdict,verdictLabel:p.verdictLabel,err:p.err,signals:p.signals},safety:p.safety,brandfit:bf,_demo:true};
+  return {_q:link,ok:true,username:link,title:'@'+link,link:'https://t.me/'+link,subs:[42000,50000,50000][seed],verified:false,adContact:'@'+link+'_ads',metrics:p.metrics,verdict:{score:p.score,verdict:p.verdict,verdictLabel:p.verdictLabel,err:p.err,signals:p.signals},safety:p.safety,brandfit:bf,network:{fwd:['mediahub_ru','tgpromo'],mentions:seed===1?[]:['tgpromo']},_demo:true};
 }
 // after a подбор: auto-fill the brand profile with what we learned (still editable)
 function learnProfile(){
