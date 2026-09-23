@@ -212,7 +212,21 @@ async function enrichChannels(channels, trace) {
   return channels;
 }
 
+// vetting: fetch one channel's rich signals (by @username / t.me link) from the userbot /channel.
+async function channelData(input) {
+  if (!RESOLVER_URL) return null;
+  try {
+    const u = new URL(RESOLVER_URL + '/channel');
+    u.searchParams.set('username', String(input || '').slice(0, 120));
+    if (RESOLVER_TOKEN) u.searchParams.set('token', RESOLVER_TOKEN);
+    const r = await fetch(u, { signal: AbortSignal.timeout(Number(process.env.RESOLVER_TIMEOUT_MS) || 12000) });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d && d.ok ? d : null;
+  } catch (e) { return null; }
+}
+
 module.exports = {
-  enabled, searchEnabled, resolveOne, enrichChannels,
+  enabled, searchEnabled, resolveOne, enrichChannels, channelData,
   normTitle, titleSim, subsSim, usernamesFromUrls, extractAdContact,   // exported for tests
 };

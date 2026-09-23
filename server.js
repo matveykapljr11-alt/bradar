@@ -371,6 +371,27 @@ async function handler(req, res) {
           ? { resolved: true, username: r.username, link: r.link, adContact: r.adContact || '', confidence: r.confidence, metrics: r.metrics || null, subs: r.subs || 0 }
           : { resolved: false });
       }
+      // CHANNEL VETTING (the new product): paste a channel link/@username → verdict with arguments.
+      if (p === '/api/check' && req.method === 'POST') {
+        const who = authUser(req);
+        if (!who) return send(res, 401, { error: 'auth', message: 'Откройте приложение внутри Telegram.' });
+        if (!(await underLimit('chk', who.id, Number(process.env.CHECK_LIMIT_DAY) || 60, 86400)))
+          return send(res, 429, { error: 'rate', message: 'Слишком много проверок за сегодня — попробуйте завтра.' });
+        const cb = await readBody(req);
+        const resolver = require('./resolver'); const vet = require('./vet');
+        const data = await resolver.channelData(cb.channel || cb.username || cb.link || '');
+        try { await store.bumpFunnel('check'); } catch (e) {}
+        if (!data) return send(res, 200, { ok: false, error: 'Канал не найден или это не публичный канал. Проверьте ссылку.' });
+        const verdict = vet.vetChannel(data);
+        const safety = vet.brandSafety((data.metrics && data.metrics.posts) || []);
+        const m = data.metrics || {};
+        return send(res, 200, {
+          ok: true, username: data.username, title: data.title, link: data.link, subs: data.subs,
+          verified: !!data.verified, adContact: data.adContact || '',
+          metrics: { reach: m.reach || 0, er: m.er || 0, cv: m.cv || 0, adRatio: m.adRatio || 0, posts30: m.posts30 || 0, reactions: m.reactions || 0, sample: m.sample || 0 },
+          verdict, safety,
+        });
+      }
       if (p === '/api/alternatives' && req.method === 'POST') {
         const b = await readBody(req);
         return send(res, 200, {
