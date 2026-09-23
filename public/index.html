@@ -671,6 +671,7 @@ const S={
   history:[],
   lastRecalc:null,
   step:'',
+  check:{input:'',results:[],loading:false,error:'',queue:0,ran:false},
 };
 function isFav(id){ return S.favs.some(f=>f.id===id); }
 function toggleFav(ch){
@@ -761,6 +762,7 @@ function updateDesktop(){
 const SCREENS={};
 function render(){
   app.innerHTML =
+    scr('check',SCREENS.check())+
     scr('onboard',SCREENS.onboard())+
     scr('confirm',SCREENS.confirm())+
     scr('brief',SCREENS.brief())+
@@ -797,6 +799,106 @@ function logoMark(){
 /* =============================================================
  *  SCREEN 1a — onboarding
  * ============================================================= */
+/* =============================================================
+ *  SCREEN 0 — channel VETTING (the core product): paste a channel
+ *  (or a list) → verdict on накрутка/живость with arguments, ad
+ *  density, brand-safety and the real contact.
+ * ============================================================= */
+const VC={live:{c:'#12A150',bg:'#E9F8EF',dot:'#12A150'},caution:{c:'#B87400',bg:'#FFF6E6',dot:'#E9A100'},dead:{c:'#D8322B',bg:'#FEEDEC',dot:'#D8322B'}};
+const SIG={good:'#12A150',warn:'#E9A100',bad:'#D8322B'};
+function fmtN(n){ try{return (Number(n)||0).toLocaleString('ru-RU').replace(/,/g,' ');}catch(e){return String(n||0);} }
+function metricCell(label,val){ return `<div style="flex:1;min-width:64px"><div style="font:800 15px Manrope;color:var(--navy)">${val}</div><div style="font:600 10.5px Manrope;color:rgba(16,38,74,.5);margin-top:1px">${label}</div></div>`; }
+
+function verdictCard(r){
+  if(!r||!r.ok){
+    return `<div class="card" style="border-color:#F3C9C6"><div style="font:700 13px Manrope;color:var(--navy);margin-bottom:4px">${esc(r&&r._q||'Канал')}</div>
+      <div style="font:500 12.5px/1.5 Manrope;color:var(--red)">${esc((r&&r.error)||'Не удалось проверить канал')}</div></div>`;
+  }
+  const v=r.verdict||{}; const th=VC[v.verdict]||VC.caution; const m=r.metrics||{};
+  const safety=Array.isArray(r.safety)?r.safety:[];
+  const sig=(v.signals||[]).map(s=>`<div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px">
+      <span style="width:7px;height:7px;border-radius:50%;background:${SIG[s.level]||'#999'};flex:none;margin-top:5px"></span>
+      <span style="font:500 12.5px/1.5 Manrope;color:var(--navy)">${esc(s.text)}</span></div>`).join('');
+  const ad=r.adContact?(String(r.adContact).charAt(0)==='@'?'https://t.me/'+String(r.adContact).slice(1):''):'';
+  const openLink=r.link||(r.username?'https://t.me/'+r.username:'');
+  const contact=openLink?`<div style="display:flex;gap:8px;margin-top:13px">
+      <span class="pbtn accent" data-open-url="${esc(openLink)}" style="flex:1;text-align:center">Открыть канал</span>
+      ${ad?`<span class="pbtn" data-open-url="${esc(ad)}" style="flex:1;text-align:center">Написать по рекламе</span>`:''}
+    </div>`:'';
+  const safeBlock=safety.length?`<div style="margin-top:12px;padding:10px 12px;background:#FEEDEC;border:1px solid #F3C9C6;border-radius:11px">
+      <div style="font:800 11px Manrope;color:var(--red);margin-bottom:5px">⚠ Не подойдёт большинству брендов</div>
+      <div style="font:500 12px/1.5 Manrope;color:#8A2420">В постах встречается: ${safety.map(esc).join(', ')}.</div></div>`:'';
+  return `<div class="card" style="border-color:${th.c}33">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div style="min-width:0">
+        <div style="font:800 15px Manrope;color:var(--navy);display:flex;align-items:center;gap:5px">${esc(r.title||('@'+r.username))}${r.verified?'<span style="color:var(--blue)">✔</span>':''}</div>
+        <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.5);margin-top:2px">@${esc(r.username||'')} · ${fmtN(r.subs)} подписчиков</div>
+      </div>
+      <div style="text-align:center;flex:none">
+        <div style="font:900 24px Manrope;color:${th.c};line-height:1">${v.score!=null?v.score:'—'}</div>
+        <div style="font:700 8.5px Manrope;color:rgba(16,38,74,.4);letter-spacing:.4px">ЖИВОСТЬ</div>
+      </div>
+    </div>
+    <div style="margin-top:11px;padding:8px 12px;background:${th.bg};border-radius:10px;font:800 13px Manrope;color:${th.c}">${esc(v.verdictLabel||'')}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:13px">
+      ${metricCell('охват/пост',fmtN(m.reach))}
+      ${metricCell('ERR',(v.err!=null?v.err:0)+'%')}
+      ${metricCell('вовлечён.',(m.er||0)+'%')}
+      ${metricCell('реклама',(m.adRatio||0)+'%')}
+      ${metricCell('постов/30д',m.posts30||0)}
+    </div>
+    ${sig?`<div style="margin-top:13px;border-top:1px solid var(--line);padding-top:11px">${sig}</div>`:''}
+    ${safeBlock}
+    ${contact}
+  </div>`;
+}
+
+SCREENS.check=function(){
+  const c=S.check; const online=!!(window.BRADAR&&window.BRADAR.online);
+  const res=(c.results||[]).slice().sort((a,b)=>{
+    const sa=(a.verdict&&a.verdict.score); const sb=(b.verdict&&b.verdict.score);
+    if(a.ok&&b.ok) return (sb==null?-1:sb)-(sa==null?-1:sa);
+    return (b.ok?1:0)-(a.ok?1:0);
+  });
+  const loadingRows=c.loading?`<div class="card" style="text-align:center;color:rgba(16,38,74,.55);font:600 13px Manrope">
+      <div style="width:26px;height:26px;border-radius:50%;border:3px solid #DCE7F6;border-top-color:var(--blue);margin:0 auto 10px;animation:spin .8s linear infinite"></div>Читаем посты и реакции… ${c.queue>0?('осталось '+c.queue):''}</div>`:'';
+  return statusBar()+
+  `<div class="hero a" style="margin-top:-40px;padding-top:46px;padding-bottom:52px">
+    <div class="hrow" style="margin-bottom:20px">
+      <div class="brandmark"><div class="blogo">${logoMark(28)}</div>
+        <div><span class="bname">BRADAR</span><span class="bsub">ПРОВЕРКА КАНАЛА</span></div></div>
+      ${tg?'':'<span class="hbtn" data-act="close">Закрыть</span>'}
+    </div>
+    <h1 style="font-size:24px">Стоит ли покупать рекламу в этом канале?</h1>
+    <p>Вставьте ссылку на канал — проверим на накрутку по реальным просмотрам и реакциям, оценим живость аудитории и покажем контакт для рекламы. Можно вставить сразу список.</p>
+  </div>
+  <div class="body pull">
+    <div class="card" style="${c.input.trim()?'border-color:var(--blue)':''}">
+      <div class="rowhead"><span class="aibadge">TG</span><span class="t">Ссылка на канал или список (по одной в строке)</span></div>
+      <textarea class="ta" id="checkInput" maxlength="1200" placeholder="@durov
+t.me/telegram
+https://t.me/anotherchannel" style="min-height:96px">${esc(c.input)}</textarea>
+    </div>
+    <button class="cta ${c.input.trim()?'':'off'}" id="checkBtn" data-act="runCheck" style="margin-top:12px">Проверить${(()=>{const n=parseChannels(c.input).length;return n>1?(' · '+n):'';})()}</button>
+    <p class="subcta">${online?'Читаем открытые данные канала: просмотры, реакции, частоту и рекламу постов':'Демо-режим — реальная проверка работает внутри Telegram'}</p>
+    ${c.error?`<div class="card" style="border-color:#F3C9C6;color:var(--red);font:500 12.5px Manrope;margin-top:12px">${esc(c.error)}</div>`:''}
+    ${loadingRows}
+    ${res.length?`<div style="margin-top:18px;display:flex;flex-direction:column;gap:12px">${res.map(verdictCard).join('')}</div>`:''}
+    ${(!c.ran&&!c.loading)?`<div style="margin-top:20px">
+      <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin-bottom:9px">Что вы получите</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${checkFeat('Вердикт по накрутке','Сравниваем охват с подписчиками и ищем «ровные» просмотры — след ботов')}
+        ${checkFeat('Живость аудитории','Реакции и репосты к просмотрам: есть ли живые люди за цифрами')}
+        ${checkFeat('Brand-safety','Крипта, ставки, мат, 18+ в постах — то, рядом с чем бренду стоять нельзя')}
+        ${checkFeat('Контакт для закупки','Реальный @username и контакт по рекламе из описания')}
+      </div></div>`:''}
+  </div>`+
+  tabbar('check');
+};
+function checkFeat(t,d){ return `<div style="display:flex;gap:11px;padding:12px;background:var(--soft2);border-radius:12px">
+    <span style="width:7px;height:7px;border-radius:50%;background:var(--blue);flex:none;margin-top:6px"></span>
+    <div><div style="font:700 13px Manrope;color:var(--navy)">${t}</div><div style="font:500 12px/1.5 Manrope;color:rgba(16,38,74,.6);margin-top:2px">${d}</div></div></div>`; }
+
 SCREENS.onboard=function(){
   const filled=S.brand.desc.trim().length>0;
   return statusBar()+
@@ -1888,7 +1990,7 @@ function dCell(v,k,color){return `<div style="background:#fff;padding:14px 16px"
 
 /* ---- tab bar ---- */
 function tabbar(active){
-  const tabs=[['find','Новый подбор',false],['plans','Медиапланы',false],['fav','Избранное',true],['profile','Профиль',true]];
+  const tabs=[['check','Проверка',false],['find','Подбор',false],['plans','Планы',false],['profile','Профиль',true]];
   return `<div class="tabspace"></div><div class="tabbar">${tabs.map(t=>`<div class="tab ${active===t[0]?'on':''}" data-tab="${t[0]}"><div class="ic"><i class="${t[2]?'rnd':''}"></i></div><div class="tl">${t[1]}</div></div>`).join('')}</div>`;
 }
 
@@ -1994,7 +2096,7 @@ function openChannel(id,forceDetail){
 }
 
 document.addEventListener('click',e=>{
-  const el=e.target.closest('[data-act],[data-ex],[data-goal],[data-geo],[data-budget],[data-channels],[data-aud],[data-excl],[data-tab],[data-open],[data-expand],[data-ch],[data-replace],[data-keep],[data-open-link],[data-detail],[data-alt],[data-do-replace],[data-close-sheet],[data-fmt],[data-item],[data-load-plan],[data-del-plan],[data-unfav]');
+  const el=e.target.closest('[data-act],[data-ex],[data-goal],[data-geo],[data-budget],[data-channels],[data-aud],[data-excl],[data-tab],[data-open],[data-open-url],[data-expand],[data-ch],[data-replace],[data-keep],[data-open-link],[data-detail],[data-alt],[data-do-replace],[data-close-sheet],[data-fmt],[data-item],[data-load-plan],[data-del-plan],[data-unfav]');
   if(!el) return;
 
   // ----- sheet -----
@@ -2011,6 +2113,7 @@ document.addEventListener('click',e=>{
   // ----- navigation channel -----
   if(el.hasAttribute('data-open')){ openChannel(el.getAttribute('data-open'),true); return; }
   if(el.hasAttribute('data-detail')){ openChannel(el.getAttribute('data-detail'),true); return; }
+  if(el.hasAttribute('data-open-url')){ openUrl(el.getAttribute('data-open-url')); haptic('sel'); return; }
   if(el.hasAttribute('data-open-link')){ openChannelLink(findChannel(el.getAttribute('data-open-link'))); return; }
   if(el.hasAttribute('data-ch') && !el.closest('[data-open],[data-expand],[data-replace],[data-keep]')){ /* card body tap - ignore */ }
   if(el.hasAttribute('data-expand')){ S._expanded=el.getAttribute('data-expand'); render(); $('screen-'+CURRENT)&&$('screen-'+CURRENT).classList.add('active'); return; }
@@ -2039,7 +2142,8 @@ document.addEventListener('click',e=>{
   // ----- tab bar -----
   if(el.hasAttribute('data-tab')){
     const t=el.getAttribute('data-tab');
-    if(t==='find') go('onboard');
+    if(t==='check') go('check');
+    else if(t==='find') go('onboard');
     else if(t==='plans') go('saved');
     else if(t==='fav') go('favorites');
     else if(t==='profile') go('profile');
@@ -2083,6 +2187,7 @@ document.addEventListener('click',e=>{
     case 'copyOutreach': if(S._channel){ copy(outreachFor(S._channel),'Сообщение админу скопировано'); haptic('ok'); } break;
     case 'dealWrite': { const c=S._channel; if(!c) break; const ad=(c.adContact&&String(c.adContact).charAt(0)==='@')?('https://t.me/'+String(c.adContact).slice(1)):''; const chu=(typeof chUrl==='function')&&chUrl(c); copy(outreachFor(c),(ad||chu)?'Сообщение скопировано — открываю чат, вставьте его':'Сообщение и название скопированы — найдите канал в Telegram и вставьте'); if(ad&&typeof openUrl==='function') openUrl(ad); else if(chu) openChannelLink(c); haptic('ok'); break; }
     case 'requests': toast('Отправили запросы на размещение'); break;
+    case 'runCheck': runCheck(); break;
     case 'newSearch': newSearch(); break;
     case 'goSaved': go('saved'); break;
     case 'goFav': go('favorites'); break;
@@ -2101,6 +2206,56 @@ function newSearch(){
   S.brand.desc=''; S.brand.name=''; S.brand.site=''; S.brand.channel=''; S.brand._ex=null;
   S.brief.audience=''; S.brief._audEdited=false;
   go('onboard');
+}
+
+/* ---- channel vetting ---- */
+function parseChannels(text){
+  const seen={}; const out=[];
+  (text||'').split(/[\s,;]+/).forEach(function(raw){
+    let s=String(raw).trim().replace(/^https?:\/\/(t|telegram)\.me\//i,'').replace(/^@/,'').replace(/^s\//,'').split(/[/?#]/)[0].trim();
+    if(s.length<4 || !/^[a-zA-Z][a-zA-Z0-9_]{3,}$/.test(s)) return;
+    const k=s.toLowerCase(); if(seen[k]) return; seen[k]=1; out.push(s);
+  });
+  return out.slice(0,8);
+}
+function reCheck(){ if(CURRENT==='check'){ render(); reactivate(); } }
+function runCheck(){
+  const ta=$('checkInput'); if(ta) S.check.input=ta.value;
+  const list=parseChannels(S.check.input);
+  if(!list.length){ toast('Вставьте ссылку на канал (например @durov)'); return; }
+  S.check.error=''; S.check.results=[]; S.check.ran=true;
+  const online=!!(window.BRADAR&&window.BRADAR.online&&window.BRADAR.api);
+  if(!online){ S.check.results=list.map(demoVerdict); S.check.loading=false; reCheck(); haptic('ok'); return; }
+  S.check.loading=true; S.check.queue=list.length; reCheck(); haptic('sel');
+  list.forEach(function(link){
+    window.BRADAR.api('/api/check',{method:'POST',body:JSON.stringify({channel:link})})
+      .then(function(r){ S.check.results.push(Object.assign({_q:link},r)); })
+      .catch(function(e){ S.check.results.push({_q:link,ok:false,error:(e&&e.message)||'Не удалось проверить канал'}); })
+      .then(function(){ S.check.queue--; if(S.check.queue<=0){ S.check.loading=false; haptic('ok'); } reCheck(); });
+  });
+}
+// offline/demo verdict so the UI is explorable outside Telegram (clearly a sample)
+function demoVerdict(link,i){
+  const seed=((i|0)+(String(link).length))%3;
+  const presets=[
+    {score:88,verdict:'live',verdictLabel:'Живой — брать можно',err:24.5,signals:[
+      {level:'good',text:'Охват 24.5% — в норме для канала на 42 000 подписчиков.'},
+      {level:'good',text:'Разброс просмотров живой (0.34) — контент заходит неровно, как у реальной аудитории.'},
+      {level:'good',text:'Вовлечённость 2.1% — в живой норме.'}],
+      metrics:{reach:10290,er:2.1,cv:0.34,adRatio:20,posts30:26},safety:[]},
+    {score:30,verdict:'dead',verdictLabel:'Не брать — признаки накрутки',err:18.1,signals:[
+      {level:'warn',text:'Охват 18.1% подозрительно высок при мёртвых реакциях.'},
+      {level:'bad',text:'Просмотры почти одинаковые от поста к посту (разброс 0.08) — классический признак накрутки ботами.'},
+      {level:'bad',text:'Реакций почти нет к просмотрам (ER 0.1%) — просмотры есть, живой реакции нет: похоже на купленные просмотры.'}],
+      metrics:{reach:9050,er:0.1,cv:0.08,adRatio:52,posts30:41},safety:['ставки / казино']},
+    {score:54,verdict:'caution',verdictLabel:'С осторожностью',err:9.2,signals:[
+      {level:'warn',text:'Охват 9.2% — ниже нормы, аудитория слабовата.'},
+      {level:'good',text:'Разброс просмотров живой (0.29).'},
+      {level:'warn',text:'Высокая рекламная нагрузка (38% постов).'}],
+      metrics:{reach:4600,er:1.4,cv:0.29,adRatio:38,posts30:18},safety:[]},
+  ];
+  const p=presets[seed];
+  return {_q:link,ok:true,username:link,title:'@'+link,link:'https://t.me/'+link,subs:[42000,50000,50000][seed],verified:false,adContact:'@'+link+'_ads',metrics:p.metrics,verdict:{score:p.score,verdict:p.verdict,verdictLabel:p.verdictLabel,err:p.err,signals:p.signals},safety:p.safety,_demo:true};
 }
 // after a подбор: auto-fill the brand profile with what we learned (still editable)
 function learnProfile(){
@@ -2140,6 +2295,11 @@ document.addEventListener('input',e=>{
     const filled=e.target.value.trim().length>0;
     const btn=$('findBtn'); if(btn)btn.classList.toggle('off',!filled);
     const hint=$('findHint'); if(hint)hint.textContent=filled?'Продолжим — проверим, что поняли правильно':'Опишите бренд, чтобы продолжить';
+  }
+  if(e.target.id==='checkInput'){
+    S.check.input=e.target.value;
+    const n=parseChannels(e.target.value).length;
+    const btn=$('checkBtn'); if(btn){ btn.classList.toggle('off',!e.target.value.trim()); btn.textContent='Проверить'+(n>1?(' · '+n):''); }
   }
   if(e.target.id==='audInput'){ S.brief.audience=e.target.value; S.brief._audEdited=true; }
   if(e.target.id==='budgetInput'){ const n=parseInt(String(e.target.value).replace(/\D/g,''),10); S.brief.budget=(isFinite(n)&&n>0)?n:0; }
@@ -2325,12 +2485,12 @@ let rz; window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=
 // desktop sidebar nav (reuses the same data-tab routing as the mobile tab bar)
 function buildSidebar(){
   const sb=$('sidebar'); if(!sb) return;
-  const items=[['find','Новый подбор',0],['plans','Медиапланы',0],['fav','Избранное',1],['profile','Профиль',1]];
+  const items=[['check','Проверка канала',0],['find','Подбор каналов',0],['plans','Медиапланы',0],['fav','Избранное',1],['profile','Профиль',1]];
   sb.innerHTML='<div class="sb-head"><div class="blogo">'+logoMark(26)+'</div><span>BRADAR</span></div>'+
     '<nav class="sb-nav">'+items.map(t=>`<div class="sb-item ${t[2]?'rnd':''}" data-tab="${t[0]}"><span class="sb-ic"></span>${t[1]}</div>`).join('')+'</nav>'+
     '<div class="sb-foot">Прогнозы не гарантируют результат кампании.</div>';
 }
-const SB_MAP={onboard:'find',confirm:'find',brief:'find',analysis:'find',plan:'find',channel:'find',recalc:'find',export:'find',saved:'plans',favorites:'fav',profile:'profile'};
+const SB_MAP={check:'check',onboard:'find',confirm:'find',brief:'find',analysis:'find',plan:'find',channel:'find',recalc:'find',export:'find',saved:'plans',favorites:'fav',profile:'profile'};
 function updateSidebar(){
   const active=SB_MAP[CURRENT]||'';
   document.querySelectorAll('#sidebar .sb-item').forEach(el=>el.classList.toggle('on', el.getAttribute('data-tab')===active));
@@ -2346,7 +2506,7 @@ try{ var fav=document.createElement('link'); fav.rel='icon'; fav.href=LOGO_ICON;
 // Start blank by default — a new подбор must NOT default to the last project. The saved
 // profile stays available on the Профиль screen (tap «Сохранить профиль» to reuse it).
 buildSidebar();
-go('onboard',false);
+go('check',false);
 </script>
 <script src="/bradar-api.js"></script>
 </body>

@@ -372,12 +372,14 @@ async function handler(req, res) {
           : { resolved: false });
       }
       // CHANNEL VETTING (the new product): paste a channel link/@username → verdict with arguments.
-      if (p === '/api/check' && req.method === 'POST') {
-        const who = authUser(req);
+      // POST for the app; GET allowed for admins (token) to test a verdict via URL before the UI.
+      if (p === '/api/check' && (req.method === 'POST' || (req.method === 'GET' && isAdmin(req, url)))) {
+        const admin = req.method === 'GET';
+        const who = admin ? { id: 'admin' } : authUser(req);
         if (!who) return send(res, 401, { error: 'auth', message: 'Откройте приложение внутри Telegram.' });
-        if (!(await underLimit('chk', who.id, Number(process.env.CHECK_LIMIT_DAY) || 60, 86400)))
+        if (!admin && !(await underLimit('chk', who.id, Number(process.env.CHECK_LIMIT_DAY) || 60, 86400)))
           return send(res, 429, { error: 'rate', message: 'Слишком много проверок за сегодня — попробуйте завтра.' });
-        const cb = await readBody(req);
+        const cb = admin ? { channel: url.searchParams.get('channel') || url.searchParams.get('q') || '' } : await readBody(req);
         const resolver = require('./resolver'); const vet = require('./vet');
         const data = await resolver.channelData(cb.channel || cb.username || cb.link || '');
         try { await store.bumpFunnel('check'); } catch (e) {}
