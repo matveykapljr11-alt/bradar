@@ -807,6 +807,16 @@ function logoMark(){
 const VC={live:{c:'#12A150',bg:'#E9F8EF',dot:'#12A150'},caution:{c:'#B87400',bg:'#FFF6E6',dot:'#E9A100'},dead:{c:'#D8322B',bg:'#FEEDEC',dot:'#D8322B'}};
 const SIG={good:'#12A150',warn:'#E9A100',bad:'#D8322B'};
 function fmtN(n){ try{return (Number(n)||0).toLocaleString('ru-RU').replace(/,/g,' ');}catch(e){return String(n||0);} }
+function checkPro(){ try{ return !!(window.BRADAR&&window.BRADAR.isPro&&window.BRADAR.isPro()); }catch(e){ return false; } }
+function proUnlock(){ try{ if(window.BRADAR&&window.BRADAR.buyPro){ window.BRADAR.buyPro(); } else { toast('PRO доступно внутри Telegram'); } }catch(e){} }
+function proTeaser(title,desc){
+  return `<div class="card" style="border-color:#C7DEFB;background:var(--soft)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px">
+      <span style="font:800 13px Manrope;color:var(--blue)">${title}</span>
+      <span style="font:800 9.5px Manrope;color:#fff;background:var(--blue);padding:3px 8px;border-radius:20px;letter-spacing:.4px">PRO</span></div>
+    <div style="font:500 12px/1.5 Manrope;color:rgba(16,38,74,.6);margin-bottom:10px">${desc}</div>
+    <span class="pbtn accent" data-act="proUnlock" style="display:block;text-align:center">Разблокировать за ${dealStars()} ⭐</span></div>`;
+}
 function metricCell(label,val){ return `<div style="flex:1;min-width:64px"><div style="font:800 15px Manrope;color:var(--navy)">${val}</div><div style="font:600 10.5px Manrope;color:rgba(16,38,74,.5);margin-top:1px">${label}</div></div>`; }
 
 function verdictCard(r){
@@ -821,15 +831,20 @@ function verdictCard(r){
       <span style="font:500 12.5px/1.5 Manrope;color:var(--navy)">${esc(s.text)}</span></div>`).join('');
   const ad=r.adContact?(String(r.adContact).charAt(0)==='@'?'https://t.me/'+String(r.adContact).slice(1):''):'';
   const openLink=r.link||(r.username?'https://t.me/'+r.username:'');
+  const adBtn=r.adLocked
+    ? `<span class="pbtn" data-act="proUnlock" style="flex:1;text-align:center">🔒 Контакт по рекламе · PRO</span>`
+    : (ad?`<span class="pbtn" data-open-url="${esc(ad)}" style="flex:1;text-align:center">Написать по рекламе</span>`:'');
   const contact=openLink?`<div style="display:flex;gap:8px;margin-top:13px">
       <span class="pbtn accent" data-open-url="${esc(openLink)}" style="flex:1;text-align:center">Открыть канал</span>
-      ${ad?`<span class="pbtn" data-open-url="${esc(ad)}" style="flex:1;text-align:center">Написать по рекламе</span>`:''}
+      ${adBtn}
     </div>`:'';
   const safeBlock=safety.length?`<div style="margin-top:12px;padding:10px 12px;background:#FEEDEC;border:1px solid #F3C9C6;border-radius:11px">
       <div style="font:800 11px Manrope;color:var(--red);margin-bottom:5px">⚠ Не подойдёт большинству брендов</div>
       <div style="font:500 12px/1.5 Manrope;color:#8A2420">В постах встречается: ${safety.map(esc).join(', ')}.</div></div>`:'';
   const bf=r.brandfit; let fitBlock='';
-  if(bf&&!bf.error&&bf.fit){
+  if(bf&&bf.locked){
+    fitBlock=proTeaser('🎯 Подходит ли бренду','Соответствие канала вашему бренду с обоснованием по реальным постам — кто аудитория и стоит ли брать');
+  } else if(bf&&!bf.error&&bf.fit){
     const ft={good:{c:'#12A150',bg:'#E9F8EF'},medium:{c:'#B87400',bg:'#FFF6E6'},poor:{c:'#D8322B',bg:'#FEEDEC'}}[bf.fit]||{c:'#B87400',bg:'#FFF6E6'};
     fitBlock=`<div style="margin-top:12px;padding:11px 12px;background:${ft.bg};border-radius:11px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px">
@@ -887,6 +902,12 @@ function overlapPairs(results){
   }
   return pairs;
 }
+function overlapSection(res){
+  const pairs=overlapPairs(res);
+  if(!pairs.length) return '';
+  if(checkPro()) return `<div style="margin-top:18px">${overlapCard(pairs)}</div>`;
+  return `<div style="margin-top:18px">${proTeaser('⚠ Пересечение аудиторий · '+pairs.length,'Какие каналы из списка делят аудиторию — чтобы не платить дважды за одних и тех же людей')}</div>`;
+}
 function overlapCard(pairs){
   if(!pairs.length) return '';
   const rows=pairs.map(function(p){
@@ -935,7 +956,7 @@ https://t.me/anotherchannel" style="min-height:96px">${esc(c.input)}</textarea>
     <p class="subcta">${online?'Читаем открытые данные канала: просмотры, реакции, частоту и рекламу постов':'Демо-режим — реальная проверка работает внутри Telegram'}</p>
     ${c.error?`<div class="card" style="border-color:#F3C9C6;color:var(--red);font:500 12.5px Manrope;margin-top:12px">${esc(c.error)}</div>`:''}
     ${loadingRows}
-    ${(!c.loading&&res.length>=2)?`<div style="margin-top:18px">${overlapCard(overlapPairs(res))}</div>`:''}
+    ${(!c.loading&&res.length>=2)?overlapSection(res):''}
     ${res.length?`<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">${res.map(verdictCard).join('')}</div>`:''}
     ${(!c.ran&&!c.loading)?`<div style="margin-top:20px">
       <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin-bottom:9px">Что вы получите</div>
@@ -2241,6 +2262,7 @@ document.addEventListener('click',e=>{
     case 'dealWrite': { const c=S._channel; if(!c) break; const ad=(c.adContact&&String(c.adContact).charAt(0)==='@')?('https://t.me/'+String(c.adContact).slice(1)):''; const chu=(typeof chUrl==='function')&&chUrl(c); copy(outreachFor(c),(ad||chu)?'Сообщение скопировано — открываю чат, вставьте его':'Сообщение и название скопированы — найдите канал в Telegram и вставьте'); if(ad&&typeof openUrl==='function') openUrl(ad); else if(chu) openChannelLink(c); haptic('ok'); break; }
     case 'requests': toast('Отправили запросы на размещение'); break;
     case 'runCheck': runCheck(); break;
+    case 'proUnlock': proUnlock(); break;
     case 'newSearch': newSearch(); break;
     case 'goSaved': go('saved'); break;
     case 'goFav': go('favorites'); break;
@@ -2292,11 +2314,8 @@ function runCheck(){
 // offline/demo verdict so the UI is explorable outside Telegram (clearly a sample)
 function demoVerdict(link,i,brand){
   const seed=((i|0)+(String(link).length))%3;
-  const bf=brand?[
-    {fit:'good',fitScore:82,fitLabel:'Подходит бренду',audience:'женщины 25–40, интерес к уходу и осознанному потреблению',reason:'Ядро аудитории совпадает с покупателем бренда, посты про быт и красоту — оффер ляжет нативно.'},
-    {fit:'poor',fitScore:24,fitLabel:'Не подходит бренду',audience:'трейдеры и любители ставок, преимущественно мужчины',reason:'Аудитория пришла за быстрым заработком, а не за уходовой косметикой — конверсии почти не будет.'},
-    {fit:'medium',fitScore:55,fitLabel:'Подходит с оговорками',audience:'широкая городская аудитория без чёткого интента',reason:'Тематика пересекается, но покупательский интент размыт — брать только на тест с промокодом.'},
-  ][seed]:null;
+  // offline preview = FREE tier: brand-fit is a locked teaser (real content is PRO, server-gated)
+  const bf=brand?{locked:true}:null;
   const presets=[
     {score:88,verdict:'live',verdictLabel:'Живой — брать можно',err:24.5,signals:[
       {level:'good',text:'Охват 24.5% — в норме для канала на 42 000 подписчиков.'},
@@ -2315,7 +2334,7 @@ function demoVerdict(link,i,brand){
       metrics:{reach:4600,er:1.4,cv:0.29,adRatio:38,posts30:18},safety:[]},
   ];
   const p=presets[seed];
-  return {_q:link,ok:true,username:link,title:'@'+link,link:'https://t.me/'+link,subs:[42000,50000,50000][seed],verified:false,adContact:'@'+link+'_ads',metrics:p.metrics,verdict:{score:p.score,verdict:p.verdict,verdictLabel:p.verdictLabel,err:p.err,signals:p.signals},safety:p.safety,brandfit:bf,network:{fwd:['mediahub_ru','tgpromo'],mentions:seed===1?[]:['tgpromo']},_demo:true};
+  return {_q:link,ok:true,username:link,title:'@'+link,link:'https://t.me/'+link,subs:[42000,50000,50000][seed],verified:false,adContact:'@'+link+'_ads',metrics:p.metrics,verdict:{score:p.score,verdict:p.verdict,verdictLabel:p.verdictLabel,err:p.err,signals:p.signals},safety:p.safety,brandfit:bf,adLocked:true,network:{fwd:['mediahub_ru','tgpromo'],mentions:seed===1?[]:['tgpromo']},_demo:true};
 }
 // after a подбор: auto-fill the brand profile with what we learned (still editable)
 function learnProfile(){

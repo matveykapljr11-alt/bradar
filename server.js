@@ -389,20 +389,29 @@ async function handler(req, res) {
         const verdict = vet.vetChannel(data);
         const safety = vet.brandSafety((data.metrics && data.metrics.posts) || []);
         const m = data.metrics || {};
-        // brand-fit (optional): only when a brand is described — reads the channel's real posts
+        // PAYWALL: the накрутка verdict + safety are FREE (the trust-building hook). The pro layer —
+        // brand-fit, ad contact, overlap — is PRO. Gate the costly/actionable parts server-side.
+        const grants = admin ? { pro_export: true } : await store.getGrants(who.id);
+        const pro = admin || !!(grants && grants.pro_export);
+        // brand-fit (optional): reads the channel's real posts — PRO only (also saves AI cost)
         let brandfit = null;
         const brand = String(cb.brand || '').trim();
         if (brand.length >= 8) {
-          try {
-            brandfit = await ai.brandFit(brand, {
-              title: data.title, about: data.about, subs: data.subs,
-              posts: (m.posts || []).map(p => p && p.t).filter(Boolean),
-            });
-          } catch (e) { brandfit = { error: 'Не удалось оценить соответствие бренду' }; }
+          if (!pro) { brandfit = { locked: true }; }
+          else {
+            try {
+              brandfit = await ai.brandFit(brand, {
+                title: data.title, about: data.about, subs: data.subs,
+                posts: (m.posts || []).map(p => p && p.t).filter(Boolean),
+              });
+            } catch (e) { brandfit = { error: 'Не удалось оценить соответствие бренду' }; }
+          }
         }
+        const hasAd = !!data.adContact;
         return send(res, 200, {
-          ok: true, username: data.username, title: data.title, link: data.link, subs: data.subs,
-          verified: !!data.verified, adContact: data.adContact || '',
+          ok: true, pro, username: data.username, title: data.title, link: data.link, subs: data.subs,
+          verified: !!data.verified,
+          adContact: pro ? (data.adContact || '') : '', adLocked: hasAd && !pro,
           metrics: { reach: m.reach || 0, er: m.er || 0, cv: m.cv || 0, adRatio: m.adRatio || 0, posts30: m.posts30 || 0, reactions: m.reactions || 0, sample: m.sample || 0 },
           network: m.network || { fwd: [], mentions: [] },   // for cross-channel overlap detection
           verdict, safety, brandfit,

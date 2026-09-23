@@ -202,7 +202,7 @@
     var act = el.getAttribute('data-act');
     if (GATED[act] && window.BRADAR.online && !isPro()) {
       e.preventDefault(); e.stopPropagation();
-      var msg = 'Реальные контакты каналов + готовые сообщения для размещения — BRADAR PRO (' + proPrice() + ' ⭐, доступ на 30 дней). Оформить?';
+      var msg = 'Соответствие каналов бренду, пересечение аудиторий и контакты для закупки — BRADAR PRO (' + proPrice() + ' ⭐, доступ на 30 дней). Оформить?';
       if (window.Telegram && Telegram.WebApp && Telegram.WebApp.showConfirm) {
         Telegram.WebApp.showConfirm(msg, function (ok) { if (ok) buyPro(); });
       } else { toastMsg('BRADAR PRO — ' + proPrice() + ' ⭐: экспорт и контакты'); buyPro(); }
