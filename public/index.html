@@ -959,8 +959,13 @@ https://t.me/anotherchannel" style="min-height:96px">${esc(c.input)}</textarea>
     ${(!c.loading&&res.length>=2)?overlapSection(res):''}
     ${res.length?`<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">${res.map(verdictCard).join('')}</div>`:''}
     ${(!c.loading&&c.limitHit)?`<div style="margin-top:14px">${proTeaser('Бесплатные проверки на сегодня закончились','В BRADAR PRO — проверки без дневного лимита, плюс соответствие бренду, пересечение аудиторий и контакты')}</div>`:''}
-    ${(!c.ran&&!c.loading)?`<div style="margin-top:20px">
-      <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin-bottom:9px">Что вы получите</div>
+    ${(!c.ran&&!c.loading)?`<div style="margin-top:18px">
+      <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin-bottom:9px">Не знаете, с чего начать — попробуйте на примере</div>
+      <div class="chips">
+        <span class="chip" data-ex-ch="durov">@durov</span>
+        <span class="chip" data-ex-ch="telegram">@telegram</span>
+      </div>
+      <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin:20px 0 9px">Что вы получите</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${checkFeat('Вердикт по накрутке','Сравниваем охват с подписчиками и ищем «ровные» просмотры — след ботов')}
         ${checkFeat('Живость аудитории','Реакции и репосты к просмотрам: есть ли живые люди за цифрами')}
@@ -2171,7 +2176,7 @@ function openChannel(id,forceDetail){
 }
 
 document.addEventListener('click',e=>{
-  const el=e.target.closest('[data-act],[data-ex],[data-goal],[data-geo],[data-budget],[data-channels],[data-aud],[data-excl],[data-tab],[data-open],[data-open-url],[data-expand],[data-ch],[data-replace],[data-keep],[data-open-link],[data-detail],[data-alt],[data-do-replace],[data-close-sheet],[data-fmt],[data-item],[data-load-plan],[data-del-plan],[data-unfav]');
+  const el=e.target.closest('[data-act],[data-ex],[data-ex-ch],[data-goal],[data-geo],[data-budget],[data-channels],[data-aud],[data-excl],[data-tab],[data-open],[data-open-url],[data-expand],[data-ch],[data-replace],[data-keep],[data-open-link],[data-detail],[data-alt],[data-do-replace],[data-close-sheet],[data-fmt],[data-item],[data-load-plan],[data-del-plan],[data-unfav]');
   if(!el) return;
 
   // ----- sheet -----
@@ -2201,6 +2206,12 @@ document.addEventListener('click',e=>{
     render(); $('screen-onboard').classList.add('active');
     const ta=$('brandInput'); if(ta){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}
     haptic('sel'); return;
+  }
+  // one-tap example channel on the checker: fill the field and run it immediately
+  if(el.hasAttribute('data-ex-ch')){
+    S.check.input=el.getAttribute('data-ex-ch')||'';
+    const ta=$('checkInput'); if(ta) ta.value=S.check.input;
+    runCheck(); return;
   }
 
   // ----- brief selectors -----
