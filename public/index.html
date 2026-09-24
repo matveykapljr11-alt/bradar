@@ -671,7 +671,7 @@ const S={
   history:[],
   lastRecalc:null,
   step:'',
-  check:{input:'',brand:'',results:[],loading:false,error:'',queue:0,ran:false},
+  check:{input:'',brand:'',results:[],loading:false,error:'',queue:0,ran:false,limitHit:false},
 };
 function isFav(id){ return S.favs.some(f=>f.id===id); }
 function toggleFav(ch){
@@ -958,6 +958,7 @@ https://t.me/anotherchannel" style="min-height:96px">${esc(c.input)}</textarea>
     ${loadingRows}
     ${(!c.loading&&res.length>=2)?overlapSection(res):''}
     ${res.length?`<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">${res.map(verdictCard).join('')}</div>`:''}
+    ${(!c.loading&&c.limitHit)?`<div style="margin-top:14px">${proTeaser('Бесплатные проверки на сегодня закончились','В BRADAR PRO — проверки без дневного лимита, плюс соответствие бренду, пересечение аудиторий и контакты')}</div>`:''}
     ${(!c.ran&&!c.loading)?`<div style="margin-top:20px">
       <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin-bottom:9px">Что вы получите</div>
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -2300,14 +2301,17 @@ function runCheck(){
   const list=parseChannels(S.check.input);
   if(!list.length){ toast('Вставьте ссылку на канал (например @durov)'); return; }
   const brand=(S.check.brand||'').trim();
-  S.check.error=''; S.check.results=[]; S.check.ran=true;
+  S.check.error=''; S.check.results=[]; S.check.ran=true; S.check.limitHit=false;
   const online=!!(window.BRADAR&&window.BRADAR.online&&window.BRADAR.api);
   if(!online){ S.check.results=list.map(function(l,i){return demoVerdict(l,i,brand);}); S.check.loading=false; reCheck(); haptic('ok'); return; }
   S.check.loading=true; S.check.queue=list.length; reCheck(); haptic('sel');
   list.forEach(function(link){
     window.BRADAR.api('/api/check',{method:'POST',body:JSON.stringify(brand?{channel:link,brand:brand}:{channel:link})})
       .then(function(r){ S.check.results.push(Object.assign({_q:link},r)); })
-      .catch(function(e){ S.check.results.push({_q:link,ok:false,error:(e&&e.message)||'Не удалось проверить канал'}); })
+      .catch(function(e){
+        if(e&&e.paywall){ S.check.limitHit=true; return; }               // day cap → upsell, not an error card
+        S.check.results.push({_q:link,ok:false,error:(e&&e.message)||'Не удалось проверить канал'});
+      })
       .then(function(){ S.check.queue--; if(S.check.queue<=0){ S.check.loading=false; haptic('ok'); } reCheck(); });
   });
 }

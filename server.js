@@ -379,20 +379,30 @@ async function handler(req, res) {
         const admin = req.method === 'GET';
         const who = admin ? { id: 'admin' } : authUser(req);
         if (!who) return send(res, 401, { error: 'auth', message: 'Откройте приложение внутри Telegram.' });
-        if (!admin && !(await underLimit('chk', who.id, Number(process.env.CHECK_LIMIT_DAY) || 60, 86400)))
-          return send(res, 429, { error: 'rate', message: 'Слишком много проверок за сегодня — попробуйте завтра.' });
         const cb = admin ? { channel: url.searchParams.get('channel') || url.searchParams.get('q') || '', brand: url.searchParams.get('brand') || '' } : await readBody(req);
         const resolver = require('./resolver'); const vet = require('./vet'); const ai = require('./ai');
         const data = await resolver.channelData(cb.channel || cb.username || cb.link || '');
         try { await store.bumpFunnel('check'); } catch (e) {}
+        // a channel that doesn't resolve (typo / private) must NOT cost a free check
         if (!data) return send(res, 200, { ok: false, error: 'Канал не найден или это не публичный канал. Проверьте ссылку.' });
-        const verdict = vet.vetChannel(data);
-        const safety = vet.brandSafety((data.metrics && data.metrics.posts) || []);
-        const m = data.metrics || {};
         // PAYWALL: the накрутка verdict + safety are FREE (the trust-building hook). The pro layer —
         // brand-fit, ad contact, overlap — is PRO. Gate the costly/actionable parts server-side.
         const grants = admin ? { pro_export: true } : await store.getGrants(who.id);
         const pro = admin || !!(grants && grants.pro_export);
+        // daily cap: a handful of free checks/day (the "try it" hook), high for PRO. Charged only on
+        // a successful resolve (above), so mistypes don't burn the free allowance.
+        if (!admin) {
+          const limit = pro ? (Number(process.env.PRO_CHECK_LIMIT_DAY) || 300) : (Number(process.env.FREE_CHECK_LIMIT_DAY) || 5);
+          if (!(await underLimit('chk', who.id, limit, 86400)))
+            return send(res, 429, {
+              error: 'rate', paywall: !pro,
+              message: pro ? 'Слишком много проверок за сегодня — попробуйте завтра.'
+                           : 'Бесплатные проверки на сегодня закончились. В BRADAR PRO — без дневного лимита.',
+            });
+        }
+        const verdict = vet.vetChannel(data);
+        const safety = vet.brandSafety((data.metrics && data.metrics.posts) || []);
+        const m = data.metrics || {};
         // brand-fit (optional): reads the channel's real posts — PRO only (also saves AI cost)
         let brandfit = null;
         const brand = String(cb.brand || '').trim();
