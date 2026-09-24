@@ -394,12 +394,14 @@ async function handler(req, res) {
         // a successful resolve (above), so mistypes don't burn the free allowance.
         if (!admin) {
           const limit = pro ? (Number(process.env.PRO_CHECK_LIMIT_DAY) || 300) : (Number(process.env.FREE_CHECK_LIMIT_DAY) || 5);
-          if (!(await underLimit('chk', who.id, limit, 86400)))
+          if (!(await underLimit('chk', who.id, limit, 86400))) {
+            if (!pro) { try { await store.bumpFunnel('check_limit'); } catch (e) {} }   // funnel: hit the free cap
             return send(res, 429, {
               error: 'rate', paywall: !pro,
               message: pro ? 'Слишком много проверок за сегодня — попробуйте завтра.'
                            : 'Бесплатные проверки на сегодня закончились. В BRADAR PRO — без дневного лимита.',
             });
+          }
         }
         const verdict = vet.vetChannel(data);
         const safety = vet.brandSafety((data.metrics && data.metrics.posts) || []);

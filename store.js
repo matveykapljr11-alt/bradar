@@ -105,6 +105,7 @@ module.exports = {
     const u = await loadUser(uid);
     u.grants[product] = { until: until || 0, chargeId: chargeId || null, at: Date.now() };
     await saveUser(uid, u);
+    try { await module.exports.bumpFunnel('pro'); } catch (e) {}   // funnel: PRO conversion
     return u.grants[product];
   },
   async getGrants(uid) {
@@ -154,7 +155,7 @@ module.exports = {
   // { start:{total,today}, open:{...}, analyze:{...} }
   async funnelStats() {
     const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const names = ['start', 'open', 'analyze'];
+    const names = ['start', 'open', 'analyze', 'check', 'check_limit', 'pro'];
     const out = {};
     if (useRedis) {
       for (const n of names) {
