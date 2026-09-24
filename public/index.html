@@ -877,6 +877,7 @@ function verdictCard(r){
     ${fitBlock}
     ${safeBlock}
     ${contact}
+    <div style="margin-top:11px;text-align:center"><span data-act="shareVerdict" data-u="${esc(r.username||r._q||'')}" style="font:700 12px Manrope;color:var(--blue);cursor:pointer">↗ Поделиться вердиктом</span></div>
   </div>`;
 }
 
@@ -2275,6 +2276,7 @@ document.addEventListener('click',e=>{
     case 'requests': toast('Отправили запросы на размещение'); break;
     case 'runCheck': runCheck(); break;
     case 'proUnlock': proUnlock(); break;
+    case 'shareVerdict': shareVerdict(el.getAttribute('data-u')); break;
     case 'newSearch': newSearch(); break;
     case 'goSaved': go('saved'); break;
     case 'goFav': go('favorites'); break;
@@ -2526,6 +2528,25 @@ function sharePlan(){
   if(tg&&tg.openTelegramLink){ try{tg.openTelegramLink('https://t.me/share/url?url=https://bradar.app&text='+encodeURIComponent(txt)); return;}catch(e){} }
   if(navigator.share){ try{ navigator.share({title:'Медиаплан '+S.brand.name,text:txt}); return; }catch(e){} }
   copy(txt,'Сводка медиаплана скопирована');
+}
+function shareVerdict(uname){
+  const r=(S.check.results||[]).filter(function(x){return x&&x.ok&&(x.username===uname||x._q===uname);})[0];
+  if(!r){ toast('Нет данных для шеринга'); return; }
+  const v=r.verdict||{}, m=r.metrics||{};
+  const emoji={live:'🟢',caution:'🟡',dead:'🔴'}[v.verdict]||'⚪';
+  const L=[];
+  L.push('🔍 Проверка канала @'+(r.username||uname)+' — BRADAR');
+  L.push(emoji+' Живость: '+(v.score!=null?v.score:'—')+'/100 — '+(v.verdictLabel||''));
+  if(m.reach) L.push('• Охват: '+fmtN(m.reach)+'/пост, ERR '+(v.err!=null?v.err:0)+'%');
+  if(m.er!=null) L.push('• Вовлечённость: '+m.er+'%');
+  if(Array.isArray(r.safety)&&r.safety.length) L.push('⚠ Не для брендов: '+r.safety.join(', '));
+  L.push('');
+  L.push('Проверь канал перед закупкой рекламы 👇');
+  const txt=L.join('\n');
+  const url='https://t.me/BRADARP_BOT?startapp';
+  if(tg&&tg.openTelegramLink){ try{ tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(txt)); haptic('ok'); return; }catch(e){} }
+  if(navigator.share){ try{ navigator.share({title:'Проверка канала — BRADAR',text:txt+'\n'+url}); return; }catch(e){} }
+  copy(txt+'\n'+url,'Вердикт скопирован — можно переслать');
 }
 function copy(text,msg){
   try{ if(navigator.clipboard){ navigator.clipboard.writeText(text).then(()=>toast(msg||'Скопировано'),()=>toast(msg||'Скопировано')); return; } }catch(e){}
