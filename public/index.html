@@ -961,10 +961,16 @@ https://t.me/anotherchannel" style="min-height:96px">${esc(c.input)}</textarea>
     ${res.length?`<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">${res.map(verdictCard).join('')}</div>`:''}
     ${(!c.loading&&c.limitHit)?`<div style="margin-top:14px">${proTeaser('Бесплатные проверки на сегодня закончились','В BRADAR PRO — проверки без дневного лимита, плюс соответствие бренду, пересечение аудиторий и контакты')}</div>`:''}
     ${(!c.ran&&!c.loading)?`<div style="margin-top:18px">
-      <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin-bottom:9px">Не знаете, с чего начать — попробуйте на примере</div>
+      <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin-bottom:9px">Нажмите на канал — проверим прямо сейчас</div>
       <div class="chips">
         <span class="chip" data-ex-ch="durov">@durov</span>
         <span class="chip" data-ex-ch="telegram">@telegram</span>
+      </div>
+      <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin:20px 0 9px">Как это работает</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${checkStep(1,'Вставьте ссылку на канал','Один или список — по одной ссылке в строке')}
+        ${checkStep(2,'Читаем реальные посты','Просмотры, реакции, частоту и рекламу за последний месяц — прямо из Telegram')}
+        ${checkStep(3,'Получаете честный вердикт','Брать или нет и почему — с аргументами, а не голой цифрой')}
       </div>
       <div style="font:600 11.5px Manrope;color:rgba(16,38,74,.45);margin:20px 0 9px">Что вы получите</div>
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -972,13 +978,19 @@ https://t.me/anotherchannel" style="min-height:96px">${esc(c.input)}</textarea>
         ${checkFeat('Живость аудитории','Реакции и репосты к просмотрам: есть ли живые люди за цифрами')}
         ${checkFeat('Brand-safety','Крипта, ставки, мат, 18+ в постах — то, рядом с чем бренду стоять нельзя')}
         ${checkFeat('Контакт для закупки','Реальный @username и контакт по рекламе из описания')}
-      </div></div>`:''}
+      </div>
+      ${freeChecks()?`<div style="margin-top:16px;text-align:center;font:600 11.5px Manrope;color:rgba(16,38,74,.45)">${freeChecks()} ${plural(freeChecks(),'проверка','проверки','проверок')} в день бесплатно · дальше — PRO</div>`:''}
+    </div>`:''}
   </div>`+
   tabbar('check');
 };
 function checkFeat(t,d){ return `<div style="display:flex;gap:11px;padding:12px;background:var(--soft2);border-radius:12px">
     <span style="width:7px;height:7px;border-radius:50%;background:var(--blue);flex:none;margin-top:6px"></span>
     <div><div style="font:700 13px Manrope;color:var(--navy)">${t}</div><div style="font:500 12px/1.5 Manrope;color:rgba(16,38,74,.6);margin-top:2px">${d}</div></div></div>`; }
+function checkStep(n,t,d){ return `<div style="display:flex;gap:11px;padding:12px;background:var(--soft2);border-radius:12px">
+    <span style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;flex:none;display:flex;align-items:center;justify-content:center;font:800 12px Manrope">${n}</span>
+    <div><div style="font:700 13px Manrope;color:var(--navy)">${t}</div><div style="font:500 12px/1.5 Manrope;color:rgba(16,38,74,.6);margin-top:2px">${d}</div></div></div>`; }
+function freeChecks(){ try{ return Number(window.BRADAR.config.freeChecks)||0; }catch(e){ return 0; } }
 
 SCREENS.onboard=function(){
   const filled=S.brand.desc.trim().length>0;
