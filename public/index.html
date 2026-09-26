@@ -671,7 +671,7 @@ const S={
   history:[],
   lastRecalc:null,
   step:'',
-  check:{input:'',brand:'',results:[],loading:false,error:'',queue:0,ran:false,limitHit:false},
+  check:{input:'',brand:'',results:[],loading:false,error:'',queue:0,ran:false,limitHit:false,pendingCheck:''},
 };
 function isFav(id){ return S.favs.some(f=>f.id===id); }
 function toggleFav(ch){
@@ -991,6 +991,7 @@ function checkStep(n,t,d){ return `<div style="display:flex;gap:11px;padding:12p
     <span style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;flex:none;display:flex;align-items:center;justify-content:center;font:800 12px Manrope">${n}</span>
     <div><div style="font:700 13px Manrope;color:var(--navy)">${t}</div><div style="font:500 12px/1.5 Manrope;color:rgba(16,38,74,.6);margin-top:2px">${d}</div></div></div>`; }
 function freeChecks(){ try{ return Number(window.BRADAR.config.freeChecks)||0; }catch(e){ return 0; } }
+function botUsername(){ try{ return String(window.BRADAR.config.botUsername||'').replace(/^@/,'')||'BRADARP_BOT'; }catch(e){ return 'BRADARP_BOT'; } }
 
 SCREENS.onboard=function(){
   const filled=S.brand.desc.trim().length>0;
@@ -2555,7 +2556,8 @@ function shareVerdict(uname){
   L.push('');
   L.push('Проверь канал перед закупкой рекламы 👇');
   const txt=L.join('\n');
-  const url='https://t.me/BRADARP_BOT?startapp';
+  // per-channel deep link: the recipient opens the app straight onto THIS channel's check → viral loop
+  const url='https://t.me/'+botUsername()+'?startapp=check__'+(r.username||uname);
   if(tg&&tg.openTelegramLink){ try{ tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(txt)); haptic('ok'); return; }catch(e){} }
   if(navigator.share){ try{ navigator.share({title:'Проверка канала — BRADAR',text:txt+'\n'+url}); return; }catch(e){} }
   copy(txt+'\n'+url,'Вердикт скопирован — можно переслать');
@@ -2633,6 +2635,13 @@ function postRender(){
 try{ var fav=document.createElement('link'); fav.rel='icon'; fav.href=LOGO_ICON; document.head.appendChild(fav); }catch(e){}
 // Start blank by default — a new подбор must NOT default to the last project. The saved
 // profile stays available on the Профиль screen (tap «Сохранить профиль» to reuse it).
+// deep link from a shared verdict (t.me/BOT?startapp=check__<username>) → open straight onto that
+// channel's check. The real check runs once the backend confirms online (see bradar-api.js).
+try{
+  var _sp=(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.start_param)||'';
+  var _m=/^check__([A-Za-z0-9_]{3,64})$/.exec(_sp);
+  if(_m){ S.check.input=_m[1]; S.check.pendingCheck=_m[1]; }
+}catch(e){}
 buildSidebar();
 go('check',false);
 </script>

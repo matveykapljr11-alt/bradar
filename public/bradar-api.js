@@ -94,6 +94,12 @@
   /* --- config + hydrate state from server --- */
   api('/api/config').then(function (cfg) {
     window.BRADAR.online = true; window.BRADAR.config = cfg;
+    // a shared-verdict deep link set a pending channel at boot — run its real check now that we're online
+    try {
+      if (typeof S !== 'undefined' && S.check && S.check.pendingCheck && typeof runCheck === 'function') {
+        S.check.pendingCheck = ''; runCheck();
+      }
+    } catch (e) {}
   }).catch(function () {});
 
   function mergeById(local, remote) {
